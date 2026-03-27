@@ -150,6 +150,24 @@ export function InterviewScreen({ onAnswerCaptured, config = {} }) {
             </div>
           </div>
 
+          {/* ⏱ TIMER ACTIONS */}
+          <div className="timer-actions mt-6 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setTimerActive((prev) => !prev)}
+              className="btn-timer"
+            >
+              {timerActive ? 'Stop Timer' : 'Start Timer'}
+            </button>
+            <button
+              type="button"
+              onClick={() => timer.reset()}
+              className="btn-timer btn-secondary"
+            >
+              Reset
+            </button>
+          </div>
+
           {/* 🌊 WAVEFORM */}
           <Waveform active={recording} className="mt-8 w-full max-w-xl" />
 

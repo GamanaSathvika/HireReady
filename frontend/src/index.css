@@ -489,4 +489,37 @@ body {
 
 .login-footer span:hover {
   color: #facc15;
+}/* ===== INTERVIEW TIMER BUTTONS ===== */
+.timer-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-timer {
+  border-radius: 999px;
+  border: 1px solid rgba(252, 211, 77, 0.65);
+  background: linear-gradient(170deg, rgba(250, 204, 21, 0.95), rgba(250, 204, 21, 0.75));
+  color: #151515;
+  font-weight: 700;
+  padding: 8px 18px;
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.35);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.btn-timer:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.5);
+}
+
+.btn-timer:active {
+  transform: translateY(1px);
+}
+
+.btn-timer.btn-secondary {
+  background: rgba(20, 20, 20, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
 }
