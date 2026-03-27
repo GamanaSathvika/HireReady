@@ -150,7 +150,7 @@ export function LandingScreen({ onStart }) {
 
           {/* MODE */}
           <Section title="Interaction Mode">
-            {["Voice", "Text", "Video"].map((v) => (
+            {["Voice", "Video"].map((v) => (
               <Pill
                 key={v}
                 value={v}
@@ -201,10 +201,6 @@ export function LandingScreen({ onStart }) {
             >
               Start Interview →
             </button>
-
-            <div className="warning">
-              ⚠️ This interview will be brutally honest.
-            </div>
           </div>
         </div>
       </div>
