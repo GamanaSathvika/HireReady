@@ -8,6 +8,7 @@ export function useMediaRecorder() {
   const [status, setStatus] = useState('idle') // idle | recording | stopped | error | unavailable
   const [error, setError] = useState(null)
   const [blob, setBlob] = useState(null)
+  const [stream, setStream] = useState(null)
 
   useEffect(() => {
     return () => {
@@ -18,6 +19,7 @@ export function useMediaRecorder() {
       }
       streamRef.current?.getTracks?.().forEach((t) => t.stop())
       streamRef.current = null
+      setStream(null)
     }
   }, [])
 
@@ -34,6 +36,7 @@ export function useMediaRecorder() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
+      setStream(stream)
 
       chunksRef.current = []
       const recorder = new MediaRecorder(stream)
@@ -49,6 +52,7 @@ export function useMediaRecorder() {
         setStatus('stopped')
         stream.getTracks().forEach((t) => t.stop())
         streamRef.current = null
+        setStream(null)
       }
 
       recorder.start()
@@ -66,6 +70,6 @@ export function useMediaRecorder() {
     r.stop()
   }, [])
 
-  return { status, error, blob, start, stop }
+  return { status, error, blob, stream, start, stop }
 }
 
