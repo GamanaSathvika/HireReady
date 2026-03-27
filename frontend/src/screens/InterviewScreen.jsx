@@ -1,8 +1,7 @@
 import { motion } from 'framer-motion'
-import { useEffect, useMemo, useCallback, useState } from 'react'
-import { MicButton } from '../components/MicButton'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { OrganicVoiceOrb } from '../components/OrganicVoiceOrb'
 import { ScreenShell } from '../components/ScreenShell'
-import { Waveform } from '../components/Waveform'
 import { useMediaRecorder } from '../hooks/useMediaRecorder'
 import { useTimer } from '../hooks/useTimer'
 
@@ -19,178 +18,213 @@ function parseDurationToSeconds(duration) {
   return numeric * 60
 }
 
-export function InterviewScreen({ onAnswerCaptured, config = {}, aiPrompt = "" }) {
+export function InterviewScreen({ onAnswerCaptured, onExit, config = {} }) {
   const MotionDiv = motion.div
 
-  const { status, error, blob, start, stop } = useMediaRecorder()
+  const { status, error, blob, stream, start, stop } = useMediaRecorder()
   const recording = status === 'recording'
   const stopped = status === 'stopped'
 
-  const [timerActive, setTimerActive] = useState(false)
-  const [aiSpeaking, setAiSpeaking] = useState(true)
+  const [started, setStarted] = useState(false)
+  const [interviewEnded, setInterviewEnded] = useState(false)
+  const [aiSpeaking, setAiSpeaking] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
+  const hasStoppedRef = useRef(false)
 
-  const timer = useTimer({ running: timerActive || recording })
+  const timer = useTimer({ running: started && !interviewEnded })
 
   const durationSeconds = useMemo(
     () => parseDurationToSeconds(config.duration),
     [config.duration]
   )
 
-  const durationLabel = useMemo(
-    () => formatMMSS(durationSeconds),
-    [durationSeconds]
-  )
-
+  const durationLabel = formatMMSS(durationSeconds)
   const progressLabel = `${timer.mmss} / ${durationLabel}`
-  // 🎤 MIC CLICK
-  const onMicClick = useCallback(async () => {
-    if (recording) {
-      stop()
-      return
-    }
 
-    setTimerActive(true)
-    await start()
-  }, [recording, start, stop])
-
-  // 🎧 Speak current interviewer prompt at start of each turn
-  useEffect(() => {
-    if (!aiPrompt || !aiPrompt.trim()) {
-      setAiSpeaking(false)
-      return
-    }
-
+  const startInterview = async () => {
+    setStarted(true)
     setAiSpeaking(true)
-    if (!('speechSynthesis' in window)) {
-      const id = window.setTimeout(() => setAiSpeaking(false), 2500)
-      return () => window.clearTimeout(id)
-    }
+    setInterviewEnded(false)
+    hasStoppedRef.current = false
+    await start()
 
-    window.speechSynthesis.cancel()
-    const utter = new SpeechSynthesisUtterance(aiPrompt)
-    utter.rate = 1.0
-    utter.pitch = 1.0
-    utter.onend = () => setAiSpeaking(false)
-    utter.onerror = () => setAiSpeaking(false)
-    window.speechSynthesis.speak(utter)
+    setTimeout(() => {
+      setAiSpeaking(false)
+    }, 2500)
+  }
 
-    return () => {
-      window.speechSynthesis.cancel()
-    }
-  }, [aiPrompt])
-
-  // 🎤 after recording
   useEffect(() => {
     if (!blob || !stopped) return
     onAnswerCaptured?.(blob)
   }, [blob, stopped, onAnswerCaptured])
 
   useEffect(() => {
-    if (recording) setTimerActive(true)
-  }, [recording])
+    if (!started || interviewEnded) return
+    if (timer.seconds < durationSeconds) return
+    if (hasStoppedRef.current) return
+    hasStoppedRef.current = true
+    setInterviewEnded(true)
+    stop()
+  }, [durationSeconds, interviewEnded, started, stop, timer.seconds])
+
+  useEffect(() => {
+    if (!recording || aiSpeaking) {
+      setSpeaking(false)
+      return
+    }
+
+    const timeout = setTimeout(() => setSpeaking(true), 300)
+    return () => clearTimeout(timeout)
+  }, [aiSpeaking, recording])
+
+  function handleExit() {
+    if (!hasStoppedRef.current && recording) {
+      hasStoppedRef.current = true
+      stop()
+    }
+    onExit?.()
+  }
 
   return (
-    <ScreenShell className="bg-[radial-gradient(circle_at_50%_2%,rgba(250,204,21,0.25),rgba(0,0,0,0.9)_40%)]">
+    <ScreenShell className="min-h-screen flex items-center justify-center px-4 bg-[radial-gradient(circle_at_50%_40%,rgba(250,204,21,0.15),rgba(0,0,0,1)_60%)]">
+
       <MotionDiv
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="mx-auto w-full max-w-5xl text-center"
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className="w-full max-w-lg mx-auto"
       >
 
-        {/* 🔥 TOP BAR */}
-        <div className="interview-topbar">
-          <div className="interview-topbar-left">
-            {config.role ?? 'Frontend'}
-          </div>
+        {/* READY SCREEN */}
+        {!started && (
+          <div className="min-h-[100svh] w-full flex items-center justify-center">
+            <div className="w-full flex flex-col items-center justify-center gap-6">
+              <div className="ready-card">
 
-          <div className="interview-topbar-center">
-            LIVE INTERVIEW
-          </div>
+                <div className="ready-header">
+                  <h2>Get Ready</h2>
+                  <p>Before we start your interview</p>
+                </div>
 
-          <div className="interview-topbar-right">
-            {progressLabel}
-          </div>
-        </div>
+                <div className="ready-list">
 
-        {/* 🎧 AI STATUS */}
-        <div className="mt-16 text-center">
-          {aiSpeaking && !recording && (
-            <>
-              <p className="text-xs tracking-widest uppercase text-white/40">
-                AI SPEAKING
-              </p>
+                  <div className="ready-row">
+                    <div className="icon">🎤</div>
+                    <div className="ready-text">
+                      <p>Microphone is enabled</p>
+                      <span>We'll record your responses</span>
+                    </div>
+                  </div>
 
-              <div className="mt-6 text-white/70 animate-pulse">
-                🎧 Asking question...
+                  <div className="ready-row">
+                    <div className="icon">🔇</div>
+                    <div className="ready-text">
+                      <p>Quiet environment</p>
+                      <span>Avoid distractions</span>
+                    </div>
+                  </div>
+
+                  <div className="ready-row">
+                    <div className="icon">⚡</div>
+                    <div className="ready-text">
+                      <p>Be clear & concise</p>
+                      <span>You can stop anytime</span>
+                    </div>
+                  </div>
+
+                </div>
+
+                <div className="flex justify-center">
+                  <button className="start-btn" onClick={startInterview}>
+                    Start Interview →
+                  </button>
+                </div>
               </div>
-            </>
-          )}
-
-          {!aiSpeaking && !recording && (
-            <>
-              <p className="text-xs tracking-widest uppercase text-white/40">
-                YOUR TURN
-              </p>
-
-              <div className="mt-6 text-white/70">
-                Tap mic to start answering
-              </div>
-            </>
-          )}
-
-          {recording && (
-            <>
-              <p className="text-xs tracking-widest uppercase text-red-400">
-                RECORDING
-              </p>
-
-              <div className="mt-6 text-white/70">
-                Speak clearly. Tap to stop.
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* 🎤 MIC */}
-        <div className="interview-controls mt-10">
-
-          <div className="mic-ring">
-            <MicButton
-              state={recording ? 'recording' : 'idle'}
-              onClick={onMicClick}
-            />
-
-            <div className="mic-core-text">
-              {recording ? 'Recording...' : 'Tap to speak'}
             </div>
           </div>
+        )}
 
-          {/* 🌊 WAVEFORM */}
-          <Waveform active={recording} className="mt-8 w-full max-w-xl" />
+        {/* INTERVIEW SCREEN */}
+        {started && (
+          <div className="min-h-[100svh] w-full flex flex-col items-center justify-center">
+            <div className="sticky top-4 z-30 w-full max-w-3xl">
+              <div className="mb-8 flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/35 px-5 py-3 shadow-[0_16px_46px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/72">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full bg-red-400/90 animate-pulse"
+                    style={{ boxShadow: '0 0 10px rgba(248,113,113,0.85)' }}
+                    aria-hidden="true"
+                  />
+                  <span>Live</span>
+                </div>
 
-          {/* ⚠️ ERROR */}
-          {error && (
-            <div className="mt-6 rounded-lg bg-red-500/10 ring-1 ring-red-500/30 px-4 py-3 text-sm text-red-200">
-              Mic error: {String(error.message ?? error)}
+                <div className="max-w-[45%] truncate text-xs tracking-[0.08em] text-white/45">
+                  {config.role ?? 'Frontend Developer'}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-sm text-white/92">{progressLabel}</span>
+                  <button
+                    onClick={handleExit}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-4 py-1.5 text-xs text-white/88 transition-all duration-200 hover:scale-105 hover:bg-white/14 active:scale-95"
+                  >
+                    <span aria-hidden="true">×</span>
+                    <span>Exit</span>
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
 
-          {/* 🧩 CONFIG PILLS */}
-          <div className="mt-8 flex flex-wrap justify-center gap-2">
-            {[config.role, config.mode, config.strictness, config.difficulty]
-              .filter(Boolean)
-              .map((item, i) => (
-                <span
-                  key={i}
-                  className="pill pill-active"
-                >
-                  {item}
-                </span>
-              ))}
+            <div className="flex flex-col items-center justify-center gap-6 text-center">
+              {aiSpeaking && (
+                <div className="text-yellow-300/90 animate-pulse text-sm tracking-wide">
+                  Asking question...
+                </div>
+              )}
+              {!aiSpeaking && (
+                <div className="text-white/55 text-sm">
+                  {speaking ? 'Listening to your response...' : 'Listening...'}
+                </div>
+              )}
+
+              <OrganicVoiceOrb
+                stream={stream}
+                active={started && !interviewEnded}
+                className="h-[300px] w-[300px]"
+              >
+                <div className="relative z-10 grid place-items-center h-36 w-36 rounded-full bg-black/35 backdrop-blur-md">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z"
+                      stroke={speaking ? '#FACC15' : '#E5E5E5'}
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M19 11a7 7 0 0 1-14 0"
+                      stroke={speaking ? '#FACC15' : '#E5E5E5'}
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M12 18v3"
+                      stroke={speaking ? '#FACC15' : '#E5E5E5'}
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+              </OrganicVoiceOrb>
+
+              {!!error && (
+                <div className="text-red-300 text-sm">
+                  Microphone access failed: {String(error?.message ?? error)}
+                </div>
+              )}
+            </div>
           </div>
+        )}
 
-        </div>
       </MotionDiv>
     </ScreenShell>
   )
