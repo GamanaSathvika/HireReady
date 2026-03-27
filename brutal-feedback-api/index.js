@@ -40,8 +40,9 @@ const upload = multer({
     fileSize: 25 * 1024 * 1024, // 25MB safety cap
   },
   fileFilter: (req, file, cb) => {
+    const baseMime = String(file.mimetype || "").split(";")[0].trim();
     const ok = new Set(["audio/webm", "audio/mp4", "audio/mpeg"]);
-    if (!ok.has(file.mimetype)) {
+    if (!ok.has(baseMime)) {
       return cb(
         new Error(
           `Unsupported audio type: ${file.mimetype}. Expected audio/webm, audio/mp4, or audio/mpeg.`
@@ -75,16 +76,18 @@ async function transcribeWithWhisper({ buffer, mimetype, originalname }) {
     );
   }
 
+  const baseMime = String(mimetype || "").split(";")[0].trim();
+
   const ext =
-    mimetype === "audio/webm"
+    baseMime === "audio/webm"
       ? ".webm"
-      : mimetype === "audio/mp4"
+      : baseMime === "audio/mp4"
         ? ".mp4"
         : ".mp3";
 
   const filename = originalname || `recording${ext}`;
   const form = new FormData();
-  form.append("file", new Blob([buffer], { type: mimetype }), filename);
+  form.append("file", new Blob([buffer], { type: baseMime }), filename);
   form.append("model", "whisper-large-v3");
   form.append("language", "en");
 
