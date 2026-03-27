@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brutal Feedback</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #0b1020;
+        --panel: #111a33;
+        --text: #e9eefc;
+        --muted: #a9b4da;
+        --accent: #6aa1ff;
+        --danger: #ff5e6c;
+        --ok: #6dffb8;
+      }
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial,
+          "Apple Color Emoji",
+          "Segoe UI Emoji";
+        background: radial-gradient(1200px 800px at 10% 0%, #14204a 0%, var(--bg) 55%);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 28px 18px 40px;
+      }
+      .title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        letter-spacing: 0.2px;
+      }
+      .subtitle {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .card {
+        background: color-mix(in srgb, var(--panel) 92%, black);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+      button {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text);
+        padding: 10px 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+      }
+      button.primary {
+        background: color-mix(in srgb, var(--accent) 35%, rgba(255, 255, 255, 0.08));
+        border-color: color-mix(in srgb, var(--accent) 55%, rgba(255, 255, 255, 0.15));
+      }
+      button.danger {
+        background: color-mix(in srgb, var(--danger) 22%, rgba(255, 255, 255, 0.06));
+        border-color: color-mix(in srgb, var(--danger) 45%, rgba(255, 255, 255, 0.12));
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      input[type="text"] {
+        width: min(520px, 100%);
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(0, 0, 0, 0.15);
+        color: var(--text);
+        outline: none;
+      }
+      label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .kv {
+        display: grid;
+        gap: 8px;
+        margin-top: 6px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, 0.2);
+      }
+      .dot.ok {
+        background: var(--ok);
+      }
+      .dot.bad {
+        background: var(--danger);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        margin-top: 14px;
+      }
+      @media (min-width: 900px) {
+        .grid2 {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.4;
+        color: var(--text);
+        font-family:
+          ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Monaco,
+          Consolas,
+          "Liberation Mono",
+          "Courier New",
+          monospace;
+        font-size: 12.5px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .error {
+        color: #ffd0d5;
+        background: rgba(255, 94, 108, 0.12);
+        border: 1px solid rgba(255, 94, 108, 0.25);
+        padding: 10px 12px;
+        border-radius: 10px;
+      }
+      .audio {
+        width: 100%;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="title">
+        <div>
+          <h1>Brutal Feedback</h1>
+          <div class="subtitle">Record → transcribe (Whisper) → brutal constructive feedback (Claude)</div>
+        </div>
+        <div class="pill" id="statusPill"><span class="dot" id="statusDot"></span><span id="statusText">Idle</span></div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="kv">
+            <label for="apiBase">API base URL</label>
+            <input id="apiBase" type="text" value="http://localhost:3001" />
+            <div class="muted">Endpoint used: <code>POST /feedback</code> with multipart field <code>audio</code>.</div>
+          </div>
+
+          <div class="controls">
+            <button class="primary" id="btnRequestMic">Request mic permission</button>
+            <button class="primary" id="btnStart" disabled>Start recording</button>
+            <button class="danger" id="btnStop" disabled>Stop</button>
+            <button id="btnSend" disabled>Send for feedback</button>
+            <button id="btnSpeak" disabled>Speak feedback (TTS)</button>
+            <button id="btnStopTts" disabled>Stop TTS</button>
+          </div>
+
+          <div id="errBox" class="error" style="display: none"></div>
+
+          <div>
+            <label>Recording preview</label>
+            <audio id="audioEl" class="audio" controls></audio>
+            <div class="muted" id="meta"></div>
+          </div>
+
+          <div class="grid2">
+            <div class="card" style="background: rgba(0, 0, 0, 0.15)">
+              <label>Transcript</label>
+              <pre id="transcript">(none)</pre>
+            </div>
+            <div class="card" style="background: rgba(0, 0, 0, 0.15)">
+              <label>Feedback</label>
+              <pre id="feedback">(none)</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const statusDot = $("statusDot");
+      const statusText = $("statusText");
+      const errBox = $("errBox");
+      const meta = $("meta");
+      const audioEl = $("audioEl");
+      const transcriptEl = $("transcript");
+      const feedbackEl = $("feedback");
+
+      const btnRequestMic = $("btnRequestMic");
+      const btnStart = $("btnStart");
+      const btnStop = $("btnStop");
+      const btnSend = $("btnSend");
+      const btnSpeak = $("btnSpeak");
+      const btnStopTts = $("btnStopTts");
+
+      let stream = null;
+      let recorder = null;
+      let chunks = [];
+      let blob = null;
+
+      function setStatus(kind, text) {
+        statusText.textContent = text;
+        statusDot.className = "dot";
+        if (kind === "ok") statusDot.classList.add("ok");
+        if (kind === "bad") statusDot.classList.add("bad");
+      }
+
+      function showError(msg) {
+        errBox.style.display = "block";
+        errBox.textContent = msg;
+        setStatus("bad", "Error");
+      }
+
+      function clearError() {
+        errBox.style.display = "none";
+        errBox.textContent = "";
+      }
+
+      function pickMimeType() {
+        const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+        for (const c of candidates) {
+          if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
+        }
+        return "";
+      }
+
+      function stopAllTracks() {
+        if (stream) {
+          stream.getTracks().forEach((t) => t.stop());
+          stream = null;
+        }
+      }
+
+      btnRequestMic.onclick = async () => {
+        clearError();
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          setStatus("ok", "Mic ready");
+          btnStart.disabled = false;
+        } catch (e) {
+          showError(e?.message || "Microphone permission denied.");
+        }
+      };
+
+      btnStart.onclick = async () => {
+        clearError();
+        transcriptEl.textContent = "(none)";
+        feedbackEl.textContent = "(none)";
+        btnSpeak.disabled = true;
+        btnStopTts.disabled = true;
+
+        if (!stream) {
+          showError("Mic not ready. Click “Request mic permission” first.");
+          return;
+        }
+
+        const mimeType = pickMimeType();
+        if (!mimeType) {
+          showError("No supported MediaRecorder audio mimeType found in this browser.");
+          return;
+        }
+
+        chunks = [];
+        blob = null;
+        audioEl.removeAttribute("src");
+        audioEl.load();
+
+        try {
+          recorder = new MediaRecorder(stream, { mimeType });
+        } catch (e) {
+          showError(e?.message || "Failed to start recorder.");
+          return;
+        }
+
+        recorder.ondataavailable = (ev) => {
+          if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+        };
+
+        recorder.onstop = () => {
+          blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          const url = URL.createObjectURL(blob);
+          audioEl.src = url;
+          meta.textContent = `mimeType=${blob.type} size=${Math.round(blob.size / 1024)}KB`;
+          btnSend.disabled = false;
+          setStatus("ok", "Recorded");
+        };
+
+        recorder.start();
+        btnStart.disabled = true;
+        btnStop.disabled = false;
+        btnSend.disabled = true;
+        setStatus("ok", "Recording…");
+      };
+
+      btnStop.onclick = () => {
+        clearError();
+        if (recorder && recorder.state !== "inactive") {
+          recorder.stop();
+        }
+        btnStop.disabled = true;
+        btnStart.disabled = false;
+      };
+
+      btnSend.onclick = async () => {
+        clearError();
+        if (!blob) {
+          showError("No recording available.");
+          return;
+        }
+
+        const apiBase = $("apiBase").value.trim().replace(/\/+$/, "");
+        const url = `${apiBase}/feedback`;
+
+        const fd = new FormData();
+        const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+        fd.append("audio", blob, `recording.${ext}`);
+
+        btnSend.disabled = true;
+        btnStart.disabled = true;
+        btnStop.disabled = true;
+        setStatus("ok", "Uploading…");
+
+        try {
+          const res = await fetch(url, { method: "POST", body: fd });
+          const text = await res.text();
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch {
+            throw new Error(`Non-JSON response: ${text.slice(0, 200)}`);
+          }
+
+          if (!res.ok) {
+            throw new Error(data?.error || `Request failed (${res.status})`);
+          }
+
+          transcriptEl.textContent = data.transcript || "";
+          feedbackEl.textContent = data.feedback || "";
+          btnSpeak.disabled = !data.feedback;
+          setStatus("ok", "Done");
+        } catch (e) {
+          showError(e?.message || "Request failed.");
+        } finally {
+          btnSend.disabled = false;
+          btnStart.disabled = false;
+        }
+      };
+
+      btnSpeak.onclick = () => {
+        clearError();
+        if (!("speechSynthesis" in window)) {
+          showError("This browser does not support speechSynthesis.");
+          return;
+        }
+        const text = feedbackEl.textContent.trim();
+        if (!text || text === "(none)") {
+          showError("No feedback to speak.");
+          return;
+        }
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = 1.0;
+        utter.pitch = 1.0;
+        utter.onend = () => {
+          btnStopTts.disabled = true;
+          setStatus("ok", "Done");
+        };
+        btnStopTts.disabled = false;
+        setStatus("ok", "Speaking…");
+        window.speechSynthesis.speak(utter);
+      };
+
+      btnStopTts.onclick = () => {
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        btnStopTts.disabled = true;
+        setStatus("ok", "Stopped");
+      };
+
+      window.addEventListener("beforeunload", () => {
+        stopAllTracks();
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      });
+    </script>
+  </body>
+</html>

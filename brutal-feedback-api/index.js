@@ -2,26 +2,22 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-require("dotenv").config();
+// Always load the API's own environment file, regardless of the process CWD.
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const OpenAI = require("openai");
-const Anthropic = require("@anthropic-ai/sdk");
+const Groq = require("groq-sdk");
 
 const PORT = Number(process.env.PORT || 3001);
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "";
 
-if (!process.env.OPENAI_API_KEY) {
-  console.warn("Missing OPENAI_API_KEY in environment.");
-}
-if (!process.env.ANTHROPIC_API_KEY) {
-  console.warn("Missing ANTHROPIC_API_KEY in environment.");
+if (!process.env.GROQ_API_KEY) {
+  console.warn("Missing GROQ_API_KEY in environment.");
 }
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const app = express();
 
@@ -73,54 +69,62 @@ function safeUnlink(filePath) {
 }
 
 async function transcribeWithWhisper({ buffer, mimetype, originalname }) {
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error(
+      "Server misconfigured: missing GROQ_API_KEY (required for Whisper transcription)."
+    );
+  }
+
   const ext =
     mimetype === "audio/webm"
       ? ".webm"
       : mimetype === "audio/mp4"
         ? ".mp4"
         : ".mp3";
-  const tmpPath = path.join(
-    os.tmpdir(),
-    `brutal-feedback-${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`
-  );
 
-  fs.writeFileSync(tmpPath, buffer);
-  try {
-    const fileStream = fs.createReadStream(tmpPath);
-    const res = await openai.audio.transcriptions.create({
-      file: fileStream,
-      model: "whisper-1",
-      language: "en",
-      // response_format: "text" // default is json with { text }
-    });
-    const text = (res && res.text ? String(res.text) : "").trim();
-    if (!text) throw new Error("Empty transcription returned by Whisper.");
-    return text;
-  } finally {
-    safeUnlink(tmpPath);
+  const filename = originalname || `recording${ext}`;
+  const form = new FormData();
+  form.append("file", new Blob([buffer], { type: mimetype }), filename);
+  form.append("model", "whisper-large-v3");
+  form.append("language", "en");
+
+  const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+    },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => "");
+    const snippet = bodyText ? `: ${bodyText.slice(0, 300)}` : "";
+    throw new Error(`Whisper transcription failed (${res.status} ${res.statusText})${snippet}`);
   }
+
+  const data = await res.json();
+  const text = (data && (data.text || data?.transcription || "")).toString().trim();
+  if (!text) throw new Error("Empty transcription returned by Whisper.");
+  return text;
 }
 
 async function generateBrutalFeedback(transcript) {
-  const msg = await anthropic.messages.create({
-    model: "claude-3-5-sonnet-latest",
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error(
+      "Server misconfigured: missing GROQ_API_KEY (required for Groq feedback generation)."
+    );
+  }
+
+  const msg = await groq.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
     max_tokens: 700,
-    system: BRUTAL_FEEDBACK_SYSTEM_PROMPT,
     messages: [
-      {
-        role: "user",
-        content: transcript,
-      },
+      { role: "system", content: BRUTAL_FEEDBACK_SYSTEM_PROMPT },
+      { role: "user", content: transcript },
     ],
   });
 
-  const blocks = Array.isArray(msg.content) ? msg.content : [];
-  const text = blocks
-    .filter((b) => b && b.type === "text")
-    .map((b) => b.text)
-    .join("\n")
-    .trim();
-
+  const text = msg?.choices?.[0]?.message?.content?.toString().trim() || "";
   if (!text) throw new Error("Empty feedback returned by Claude.");
   return text;
 }
