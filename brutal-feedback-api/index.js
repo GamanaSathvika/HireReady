@@ -1,9 +1,12 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const dotenv = require("dotenv");
 
-// Always load the API's own environment file, regardless of the process CWD.
-require("dotenv").config({ path: path.join(__dirname, ".env") });
+// Load root .env first, then API .env. Use override so file values win over the OS
+// environment (e.g. empty GROQ_API_KEY set in Windows would otherwise block dotenv).
+dotenv.config({ path: path.join(__dirname, "..", ".env"), override: true });
+dotenv.config({ path: path.join(__dirname, ".env"), override: true });
 
 const express = require("express");
 const cors = require("cors");
@@ -12,13 +15,14 @@ const Groq = require("groq-sdk");
 
 const PORT = Number(process.env.PORT || 3001);
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "";
-console.log("Key loaded:", !!process.env.GROQ_API_KEY);
+const GROQ_API_KEY = (process.env.GROQ_API_KEY || "").trim();
+console.log("Key loaded:", !!GROQ_API_KEY);
 
-if (!process.env.GROQ_API_KEY) {
+if (!GROQ_API_KEY) {
   console.warn("Missing GROQ_API_KEY in environment.");
 }
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const groq = new Groq({ apiKey: GROQ_API_KEY });
 
 const app = express();
 
@@ -66,7 +70,7 @@ function safeUnlink(filePath) {
 }
 
 async function transcribeWithWhisper({ buffer, mimetype, originalname }) {
-  if (!process.env.GROQ_API_KEY) {
+  if (!GROQ_API_KEY) {
     throw new Error(
       "Server misconfigured: missing GROQ_API_KEY (required for Whisper transcription)."
     );
@@ -90,7 +94,7 @@ async function transcribeWithWhisper({ buffer, mimetype, originalname }) {
   const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      Authorization: `Bearer ${GROQ_API_KEY}`,
     },
     body: form,
   });
@@ -108,7 +112,7 @@ async function transcribeWithWhisper({ buffer, mimetype, originalname }) {
 }
 
 async function generateBrutalFeedback(transcript) {
-  if (!process.env.GROQ_API_KEY) {
+  if (!GROQ_API_KEY) {
     throw new Error(
       "Server misconfigured: missing GROQ_API_KEY (required for Groq feedback generation)."
     );
@@ -147,7 +151,7 @@ function parseHistory(jsonString) {
 }
 
 async function generateInterviewReply(history, role, experienceLevel) {
-  if (!process.env.GROQ_API_KEY) {
+  if (!GROQ_API_KEY) {
     throw new Error(
       "Server misconfigured: missing GROQ_API_KEY (required for Groq interview replies)."
     );
@@ -277,7 +281,9 @@ app.post("/interview", upload.fields([{ name: "audio", maxCount: 1 }]), async (r
     const reply = await generateInterviewReply(history, role, experienceLevel);
     history = [...history, { role: "assistant", content: reply }];
     const interviewDone = timerExpired || reply.includes("INTERVIEW COMPLETE");
-    const done = interviewDone || exchangeCount >= 6;
+    // Allow longer sessions (~10+ min voice); cap avoids runaway loops only.
+    const hitSoftTurnCap = exchangeCount >= 30;
+    const done = interviewDone || hitSoftTurnCap;
 
     const response = {
       transcript,
@@ -311,8 +317,20 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: msg });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Brutal Feedback API listening on http://localhost:${PORT}`);
   if (FRONTEND_ORIGIN) console.log(`CORS allowed origin: ${FRONTEND_ORIGIN}`);
   else console.log("CORS dev mode: allowing all origins (set FRONTEND_ORIGIN to restrict).");
+  console.log("Leave this terminal open while you use the app (closing it stops the API).");
+});
+
+server.on("error", (err) => {
+  if (err && err.code === "EADDRINUSE") {
+    console.error(
+      `Port ${PORT} is already in use. Stop the other process using it, or set PORT in .env to a free port.`
+    );
+  } else {
+    console.error("Server failed to start:", err);
+  }
+  process.exit(1);
 });

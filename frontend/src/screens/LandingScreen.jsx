@@ -1,4 +1,5 @@
-﻿import { useState } from "react";
+import { motion } from 'framer-motion'
+import { useState } from 'react'
 
 const roleFocusMap = {
   "💻 Software Engineer": ["Data Structures", "Algorithms", "System Design"],
@@ -49,28 +50,24 @@ export function LandingScreen({ onStart }) {
   );
 
   return (
-    <div className="page">
-      {/* BRAND */}
-      <div className="brand">
-        <span className="brand-white">Hire</span>
-        <span className="brand-yellow">Ready</span>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className="row"
+    >
+      {/* HEADING */}
+      <div className="heading">
+        <div className="tag">AI INTERVIEW SIMULATOR</div>
+        <h1>
+          <span>Set your role, difficulty, and mode before starting.</span>
+          <span className="highlight">Let’s get you ready</span>
+        </h1>
+        <p>Practice with an AI that gives brutally honest feedback.</p>
       </div>
 
-      <div className="content">
-        {/* HEADING */}
-        <div className="heading">
-          <div className="tag">AI INTERVIEW SIMULATOR</div>
-
-          <h1>
-            <span>Set your role, difficulty, and mode before starting.</span>
-            <span className="highlight">Let’s get you ready</span>
-          </h1>
-
-          <p>Practice with an AI that gives brutally honest feedback.</p>
-        </div>
-
-        {/* CARD */}
-        <div className="card">
+      {/* CARD */}
+      <div className="card">
           {/* ROLE DROPDOWN */}
           <div className="section">
             <div className="section-title">Role Selection</div>
@@ -202,8 +199,7 @@ export function LandingScreen({ onStart }) {
               Start Interview →
             </button>
           </div>
-        </div>
       </div>
-    </div>
-  );
+    </motion.div>
+  )
 }

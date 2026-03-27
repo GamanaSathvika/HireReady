@@ -1,13 +1,15 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { BrutalLayout } from './components/BrutalLayout'
 import { FeedbackScreen } from './screens/FeedbackScreen'
+import { InterviewFeedbackScreen } from './screens/InterviewFeedbackScreen'
 import { InterviewScreen } from './screens/InterviewScreen'
 import { LandingScreen } from './screens/LandingScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { SignupScreen } from './screens/SignupScreen'
-
-const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:3001').replace(/\/+$/, '')
+import { getApiHealth, postInterviewTurn } from './utils/api'
+import { formatDurationMMSS, parseDurationToSeconds } from './utils/duration'
 
 function parseScore(feedbackText, label) {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -35,23 +37,48 @@ function normalizeFeedbackShape({ transcript, feedbackText }) {
   }
 }
 
+function durationLabelFromConfig(duration) {
+  const sec = parseDurationToSeconds(duration)
+  return formatDurationMMSS(sec)
+}
+
 export default function App() {
   const [screen, setScreen] = useState('login')
+  const [autoStartFromSignup, setAutoStartFromSignup] = useState(false)
   const [feedback, setFeedback] = useState(null)
   const [interviewConfig, setInterviewConfig] = useState(null)
   const [capturedBlob, setCapturedBlob] = useState(null)
   const [interviewHistory, setInterviewHistory] = useState([])
+  const [apiReady, setApiReady] = useState(true)
+  const [groqKeyMissing, setGroqKeyMissing] = useState(false)
+  const [interviewEndReport, setInterviewEndReport] = useState(null)
   const [aiPrompt, setAiPrompt] = useState(
     "Hello! Welcome to your mock interview. Please introduce yourself, then walk me through your projects."
   )
 
   const MotionDiv = motion.div
+  const countdownLabel = durationLabelFromConfig(interviewConfig?.duration)
 
   // 🔥 NAVIGATION
   function navigate(nextScreen) {
     window.history.pushState({ screen: nextScreen }, '', '')
     setScreen(nextScreen)
   }
+
+  const onInterviewIframeComplete = useCallback(
+    (payload) => {
+      if (!payload) return
+      setInterviewEndReport({
+        feedbackText: payload.feedbackText ?? '',
+        transcript: payload.transcript ?? '',
+        history: payload.history ?? [],
+        session: payload.session ?? {},
+      })
+      window.history.pushState({ screen: 'interview-feedback' }, '', '')
+      setScreen('interview-feedback')
+    },
+    [],
+  )
 
   // 🔥 BACK BUTTON
   useEffect(() => {
@@ -72,6 +99,36 @@ export default function App() {
     window.history.replaceState({ screen: 'login' }, '')
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const health = await getApiHealth()
+        if (!cancelled) {
+          setApiReady(true)
+          setGroqKeyMissing(health?.groqConfigured === false)
+        }
+      } catch {
+        if (!cancelled) {
+          setApiReady(false)
+          setGroqKeyMissing(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (screen !== 'landing' || !autoStartFromSignup) return
+    const t = window.setTimeout(() => {
+      navigate('interview')
+      setAutoStartFromSignup(false)
+    }, 300)
+    return () => window.clearTimeout(t)
+  }, [screen, autoStartFromSignup])
+
   // 🔥 PROCESSING FLOW
   useEffect(() => {
     if (screen !== 'processing' || !capturedBlob) return
@@ -79,17 +136,14 @@ export default function App() {
 
     ;(async () => {
       try {
-        const ext = capturedBlob.type.includes('mp4') ? 'mp4' : 'webm'
-        const fd = new FormData()
-        fd.append('audio', capturedBlob, `recording.${ext}`)
-        fd.append('history', JSON.stringify(interviewHistory))
-
-        const res = await fetch(`${API_BASE}/interview`, {
-          method: 'POST',
-          body: fd,
+        const payload = await postInterviewTurn({
+          blob: capturedBlob,
+          history: interviewHistory,
+          role: interviewConfig?.role ?? '',
+          experienceLevel: interviewConfig?.experienceLevel ?? '',
+          timerExpired: false,
+          message: '',
         })
-        const payload = await res.json()
-        if (!res.ok) throw new Error(payload?.error || `Request failed (${res.status})`)
         if (cancelled) return
 
         const replyText = payload?.message || payload?.reply || ''
@@ -125,10 +179,11 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [screen, capturedBlob, interviewHistory])
+  }, [screen, capturedBlob, interviewHistory, interviewConfig])
 
   function reset() {
     setFeedback(null)
+    setInterviewEndReport(null)
     setInterviewConfig(null)
     setCapturedBlob(null)
     setInterviewHistory([])
@@ -150,7 +205,10 @@ export default function App() {
           {/* LOGIN */}
           {screen === 'login' && (
             <LoginScreen
-              onLogin={() => navigate('landing')}
+              onLogin={() => {
+                setAutoStartFromSignup(false)
+                navigate('landing')
+              }}
               onSwitchToSignup={() => navigate('signup')} // ✅ FIXED
             />
           )}
@@ -158,44 +216,83 @@ export default function App() {
           {/* SIGNUP ✅ NEW */}
           {screen === 'signup' && (
             <SignupScreen
-              onSignup={() => navigate('landing')}
+              onSignup={() => {
+                setAutoStartFromSignup(true)
+                navigate('landing')
+              }}
               onSwitchToLogin={() => navigate('login')} // ✅ FIXED
             />
           )}
 
           {/* LANDING */}
           {screen === 'landing' && (
-            <LandingScreen
-              onStart={(cfg) => {
-                setInterviewConfig(cfg ?? null)
-                setInterviewHistory([])
-                setAiPrompt("Hello! Welcome to your mock interview. Please introduce yourself, then walk me through your projects.")
-                navigate('interview')
-              }}
-            />
+            <BrutalLayout countdown={countdownLabel}>
+              {!apiReady && (
+                <div className="mb-3 rounded-[10px] border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                  API is unreachable. Start `brutal-feedback-api` and refresh.
+                </div>
+              )}
+              {apiReady && groqKeyMissing && (
+                <div className="mb-3 rounded-[10px] border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                  Voice and AI need <code className="rounded bg-black/30 px-1">GROQ_API_KEY</code>. Copy{' '}
+                  <code className="rounded bg-black/30 px-1">.env.example</code> to{' '}
+                  <code className="rounded bg-black/30 px-1">.env</code> in the project root or{' '}
+                  <code className="rounded bg-black/30 px-1">brutal-feedback-api/</code>, add your key from{' '}
+                  <a
+                    href="https://console.groq.com/keys"
+                    className="underline"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    console.groq.com/keys
+                  </a>
+                  , restart the API, then refresh.
+                </div>
+              )}
+              <LandingScreen
+                onStart={(cfg) => {
+                  setInterviewConfig(cfg ?? null)
+                  setInterviewHistory([])
+                  setAiPrompt("Hello! Welcome to your mock interview. Please introduce yourself, then walk me through your projects.")
+                  navigate('interview')
+                }}
+              />
+            </BrutalLayout>
           )}
 
           {/* INTERVIEW */}
           {screen === 'interview' && (
             <InterviewScreen
-              config={interviewConfig}
-              aiPrompt={aiPrompt}
-              onAnswerCaptured={(blob) => {
-                setCapturedBlob(blob ?? null)
-                navigate('processing')
-              }}
+              interviewConfig={interviewConfig}
+              groqKeyMissing={groqKeyMissing}
+              onExit={() => navigate('landing')}
+              onInterviewComplete={onInterviewIframeComplete}
+            />
+          )}
+
+          {screen === 'interview-feedback' && interviewEndReport && (
+            <InterviewFeedbackScreen
+              session={interviewEndReport.session}
+              feedbackText={interviewEndReport.feedbackText}
+              onBackHome={reset}
             />
           )}
 
           {/* PROCESSING */}
-          {screen === 'processing' && <ProcessingScreen />}
+          {screen === 'processing' && (
+            <BrutalLayout countdown={countdownLabel}>
+              <ProcessingScreen />
+            </BrutalLayout>
+          )}
 
           {/* FEEDBACK */}
           {screen === 'feedback' && (
-            <FeedbackScreen
-              feedback={feedback}
-              onTryAgain={reset}
-            />
+            <BrutalLayout countdown={countdownLabel}>
+              <FeedbackScreen
+                feedback={feedback}
+                onTryAgain={reset}
+              />
+            </BrutalLayout>
           )}
 
         </MotionDiv>
