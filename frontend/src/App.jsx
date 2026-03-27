@@ -17,23 +17,52 @@ export default function App() {
   const [screen, setScreen] = useState('landing')
   const [feedback, setFeedback] = useState(null)
   const [interviewConfig, setInterviewConfig] = useState(null)
-  const MotionDiv = motion.div
 
+  const MotionDiv = motion.div
   const Screen = useMemo(() => screens[screen] ?? LandingScreen, [screen])
 
+  // 🔥 NAVIGATION FUNCTION (push to browser history)
+  function navigate(nextScreen) {
+    window.history.pushState({ screen: nextScreen }, '', '')
+    setScreen(nextScreen)
+  }
+
+  // 🔥 HANDLE BROWSER BACK BUTTON
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (event.state?.screen) {
+        setScreen(event.state.screen)
+      } else {
+        setScreen('landing')
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState)
+
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  // 🔥 INITIAL STATE SYNC
+  useEffect(() => {
+    window.history.replaceState({ screen: 'landing' }, '')
+  }, [])
+
+  // 🔥 PROCESSING → FEEDBACK FLOW
   useEffect(() => {
     if (screen !== 'processing') return
+
     const id = window.setTimeout(() => {
       setFeedback(buildMockFeedback())
-      setScreen('feedback')
+      navigate('feedback') // 🔥 IMPORTANT: use navigate
     }, 2000)
+
     return () => window.clearTimeout(id)
   }, [screen])
 
   function reset() {
     setFeedback(null)
     setInterviewConfig(null)
-    setScreen('landing')
+    navigate('landing') // 🔥 IMPORTANT
   }
 
   return (
@@ -46,24 +75,38 @@ export default function App() {
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.25, ease: [0.2, 0.9, 0.2, 1] }}
         >
+
+          {/* LANDING */}
           {screen === 'landing' && (
-            <Screen
+            <LandingScreen
               onStart={(cfg) => {
                 setInterviewConfig(cfg ?? null)
-                setScreen('interview')
+                navigate('interview') // 🔥 FIXED
               }}
             />
           )}
+
+          {/* INTERVIEW */}
           {screen === 'interview' && (
-            <Screen
+            <InterviewScreen
               config={interviewConfig}
               onAnswerCaptured={() => {
-                setScreen('processing')
+                navigate('processing') // 🔥 FIXED
               }}
             />
           )}
-          {screen === 'processing' && <Screen />}
-          {screen === 'feedback' && <Screen feedback={feedback} onTryAgain={reset} />}
+
+          {/* PROCESSING */}
+          {screen === 'processing' && <ProcessingScreen />}
+
+          {/* FEEDBACK */}
+          {screen === 'feedback' && (
+            <FeedbackScreen
+              feedback={feedback}
+              onTryAgain={reset}
+            />
+          )}
+
         </MotionDiv>
       </AnimatePresence>
     </div>
