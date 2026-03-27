@@ -145,14 +145,31 @@ export function InterviewScreen({ onAnswerCaptured, onExit, config = {} }) {
         {/* INTERVIEW SCREEN */}
         {started && (
           <div className="min-h-[100svh] w-full flex flex-col items-center justify-center">
-            <div className="w-full max-w-3xl">
-              <div className="interview-topbar mb-8 bg-black/35 border-white/15 backdrop-blur-xl">
-              <div>{config.role ?? 'Frontend Developer'}</div>
-              <div className="text-red-300">LIVE</div>
-              <div className="flex items-center gap-3">
-                <span>{progressLabel}</span>
-                <button onClick={handleExit} className="exit-btn">Exit</button>
-              </div>
+            <div className="sticky top-4 z-30 w-full max-w-3xl">
+              <div className="mb-8 flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/35 px-5 py-3 shadow-[0_16px_46px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/72">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full bg-red-400/90 animate-pulse"
+                    style={{ boxShadow: '0 0 10px rgba(248,113,113,0.85)' }}
+                    aria-hidden="true"
+                  />
+                  <span>Live</span>
+                </div>
+
+                <div className="max-w-[45%] truncate text-xs tracking-[0.08em] text-white/45">
+                  {config.role ?? 'Frontend Developer'}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-sm text-white/92">{progressLabel}</span>
+                  <button
+                    onClick={handleExit}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-4 py-1.5 text-xs text-white/88 transition-all duration-200 hover:scale-105 hover:bg-white/14 active:scale-95"
+                  >
+                    <span aria-hidden="true">×</span>
+                    <span>Exit</span>
+                  </button>
+                </div>
               </div>
             </div>
 
