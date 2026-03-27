@@ -127,6 +127,45 @@ async function generateBrutalFeedback(transcript) {
   return text;
 }
 
+function parseHistory(jsonString) {
+  if (typeof jsonString !== "string" || jsonString.trim() === "") return [];
+  try {
+    const parsed = JSON.parse(jsonString);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (m) =>
+          m &&
+          (m.role === "user" || m.role === "assistant") &&
+          typeof m.content === "string"
+      )
+      .map((m) => ({ role: m.role, content: m.content }));
+  } catch {
+    return [];
+  }
+}
+
+async function generateInterviewReply(history) {
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error(
+      "Server misconfigured: missing GROQ_API_KEY (required for Groq interview replies)."
+    );
+  }
+
+  const system =
+    "You are a tough but experienced startup investor conducting a mock pitch interview. Ask probing follow-up questions based on what the founder says. If their answer is vague, call it out and press them for specifics. If they make a strong point, acknowledge it briefly then probe deeper. Keep each reply under 60 words. After 6 user exchanges, give a final brutally honest overall assessment of the pitch and end with the phrase: INTERVIEW COMPLETE.";
+
+  const msg = await groq.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
+    max_tokens: 250,
+    messages: [{ role: "system", content: system }, ...history],
+  });
+
+  const reply = msg?.choices?.[0]?.message?.content?.toString().trim() || "";
+  if (!reply) throw new Error("Empty interview reply returned by Groq.");
+  return reply;
+}
+
 app.get("/health", (req, res) => {
   res.json({ ok: true });
 });
@@ -162,6 +201,55 @@ app.post("/feedback", upload.single("audio"), async (req, res) => {
     return res
       .status(200)
       .json({ transcript, feedback: `ERROR: ${msg}` });
+  }
+});
+
+app.post("/interview", upload.fields([{ name: "audio", maxCount: 1 }]), async (req, res) => {
+  const audioFile = req?.files?.audio?.[0];
+  if (!audioFile) {
+    return res.status(500).json({ error: "Missing required form field: audio" });
+  }
+
+  let transcript = "";
+  try {
+    transcript = await transcribeWithWhisper({
+      buffer: audioFile.buffer,
+      mimetype: audioFile.mimetype,
+      originalname: audioFile.originalname,
+    });
+  } catch (err) {
+    const msg = err && err.message ? err.message : "Whisper transcription failed.";
+    return res.status(500).json({ error: msg });
+  }
+
+  let history = parseHistory(req?.body?.history);
+
+  if (typeof transcript !== "string" || transcript.trim() === "") {
+    return res.status(200).json({
+      transcript: "",
+      reply: "No speech detected. Please try again.",
+      history,
+      done: false,
+    });
+  }
+
+  const exchangeCount = history.filter((m) => m.role === "user").length;
+  history = [...history, { role: "user", content: transcript }];
+
+  try {
+    const reply = await generateInterviewReply(history);
+    history = [...history, { role: "assistant", content: reply }];
+    const done =
+      reply.includes("INTERVIEW COMPLETE.") ||
+      reply.includes("INTERVIEW COMPLETE") ||
+      exchangeCount >= 6;
+
+    return res.status(200).json({ transcript, reply, history, done });
+  } catch (err) {
+    const msg = err && err.message ? err.message : "Groq interview reply failed.";
+    const reply = `ERROR: ${msg}`;
+    history = [...history, { role: "assistant", content: reply }];
+    return res.status(200).json({ transcript, reply, history, done: false });
   }
 });
 
