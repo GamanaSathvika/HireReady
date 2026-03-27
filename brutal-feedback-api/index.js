@@ -12,6 +12,7 @@ const Groq = require("groq-sdk");
 
 const PORT = Number(process.env.PORT || 3001);
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "";
+console.log("Key loaded:", !!process.env.GROQ_API_KEY);
 
 if (!process.env.GROQ_API_KEY) {
   console.warn("Missing GROQ_API_KEY in environment.");
@@ -145,21 +146,49 @@ function parseHistory(jsonString) {
   }
 }
 
-async function generateInterviewReply(history) {
+async function generateInterviewReply(history, role, experienceLevel) {
   if (!process.env.GROQ_API_KEY) {
     throw new Error(
       "Server misconfigured: missing GROQ_API_KEY (required for Groq interview replies)."
     );
   }
 
-  const system =
-    "You are a tough but experienced startup investor conducting a mock pitch interview. Ask probing follow-up questions based on what the founder says. If their answer is vague, call it out and press them for specifics. If they make a strong point, acknowledge it briefly then probe deeper. Keep each reply under 60 words. After 6 user exchanges, give a final brutally honest overall assessment of the pitch and end with the phrase: INTERVIEW COMPLETE.";
+  const safeRole = (role || "Software Engineer").toString().trim();
+  const safeLevel = (experienceLevel || "Fresher").toString().trim();
+  const system = `You are a professional interviewer conducting a mock technical interview for a ${safeRole} position (${safeLevel} level).
 
-  const msg = await groq.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    max_tokens: 250,
-    messages: [{ role: "system", content: system }, ...history],
-  });
+Follow this exact flow:
+1. Greet the candidate and ask them to introduce themselves.
+2. Ask them to describe their projects.
+3. Ask 3-5 technical questions specific to the projects they mentioned AND relevant to the ${safeRole} role - for example if they apply for Frontend Developer ask about DOM, rendering, state management; for Data Analyst ask about SQL, data cleaning, visualization choices; tailor every question to the role.
+4. Ask one question at a time. Do not proceed until you have a full answer.
+5. If an answer is vague, ask one specific follow-up.
+6. Stay in interviewer character. No feedback mid-interview.
+7. When all questions are done, say exactly: INTERVIEW COMPLETE
+
+On INTERVIEW COMPLETE generate a feedback report with:
+- Overall Score (out of 10)
+- Communication: filler word count by word, clarity, pace
+- Structure: did answers follow situation -> action -> result
+- Technical Depth: how well they explained decisions relevant to ${safeRole}
+- Confidence: hedging, incomplete sentences, self-corrections
+- Question-by-Question Breakdown
+- Top 3 Things to Fix: specific and actionable`;
+
+  const messages = [{ role: "system", content: system }, ...history];
+  console.log("Messages sent:", JSON.stringify(messages));
+  let msg;
+  try {
+    msg = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      max_tokens: 250,
+      messages,
+      stream: false,
+    });
+  } catch (err) {
+    console.error("Groq interview API call failed:", err);
+    throw err;
+  }
 
   const reply = msg?.choices?.[0]?.message?.content?.toString().trim() || "";
   if (!reply) throw new Error("Empty interview reply returned by Groq.");
@@ -206,20 +235,28 @@ app.post("/feedback", upload.single("audio"), async (req, res) => {
 
 app.post("/interview", upload.fields([{ name: "audio", maxCount: 1 }]), async (req, res) => {
   const audioFile = req?.files?.audio?.[0];
-  if (!audioFile) {
-    return res.status(500).json({ error: "Missing required form field: audio" });
-  }
+  const role = (req?.body?.role || "").toString();
+  const experienceLevel = (req?.body?.experienceLevel || "").toString();
+  const incomingMessage = (req?.body?.message || "").toString();
+  const timerExpired = String(req?.body?.timerExpired || "false").toLowerCase() === "true";
 
   let transcript = "";
-  try {
-    transcript = await transcribeWithWhisper({
-      buffer: audioFile.buffer,
-      mimetype: audioFile.mimetype,
-      originalname: audioFile.originalname,
-    });
-  } catch (err) {
-    const msg = err && err.message ? err.message : "Whisper transcription failed.";
-    return res.status(500).json({ error: msg });
+  if (audioFile) {
+    try {
+      transcript = await transcribeWithWhisper({
+        buffer: audioFile.buffer,
+        mimetype: audioFile.mimetype,
+        originalname: audioFile.originalname,
+      });
+      console.log("Transcribed:", transcript);
+    } catch (err) {
+      const msg = err && err.message ? err.message : "Whisper transcription failed.";
+      return res.status(500).json({ error: msg });
+    }
+  } else if (timerExpired && incomingMessage.trim()) {
+    transcript = incomingMessage.trim();
+  } else {
+    return res.status(500).json({ error: "Missing required form field: audio" });
   }
 
   let history = parseHistory(req?.body?.history);
@@ -237,19 +274,35 @@ app.post("/interview", upload.fields([{ name: "audio", maxCount: 1 }]), async (r
   history = [...history, { role: "user", content: transcript }];
 
   try {
-    const reply = await generateInterviewReply(history);
+    const reply = await generateInterviewReply(history, role, experienceLevel);
     history = [...history, { role: "assistant", content: reply }];
-    const done =
-      reply.includes("INTERVIEW COMPLETE.") ||
-      reply.includes("INTERVIEW COMPLETE") ||
-      exchangeCount >= 6;
+    const interviewDone = timerExpired || reply.includes("INTERVIEW COMPLETE");
+    const done = interviewDone || exchangeCount >= 6;
 
-    return res.status(200).json({ transcript, reply, history, done });
+    const response = {
+      transcript,
+      message: reply,
+      reply,
+      history,
+      interviewDone,
+      done,
+    };
+    console.log("API raw response:", response);
+    return res.status(200).json(response);
   } catch (err) {
     const msg = err && err.message ? err.message : "Groq interview reply failed.";
     const reply = `ERROR: ${msg}`;
     history = [...history, { role: "assistant", content: reply }];
-    return res.status(200).json({ transcript, reply, history, done: false });
+    const response = {
+      transcript,
+      message: reply,
+      reply,
+      history,
+      interviewDone: false,
+      done: false,
+    };
+    console.log("API raw response:", response);
+    return res.status(200).json(response);
   }
 });
 

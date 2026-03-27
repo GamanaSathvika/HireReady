@@ -1,4 +1,4 @@
-﻿import { motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useEffect, useMemo, useCallback, useState } from 'react'
 import { MicButton } from '../components/MicButton'
 import { ScreenShell } from '../components/ScreenShell'
@@ -19,7 +19,7 @@ function parseDurationToSeconds(duration) {
   return numeric * 60
 }
 
-export function InterviewScreen({ onAnswerCaptured, config = {} }) {
+export function InterviewScreen({ onAnswerCaptured, config = {}, aiPrompt = "" }) {
   const MotionDiv = motion.div
 
   const { status, error, blob, start, stop } = useMediaRecorder()
@@ -42,7 +42,6 @@ export function InterviewScreen({ onAnswerCaptured, config = {} }) {
   )
 
   const progressLabel = `${timer.mmss} / ${durationLabel}`
-
   // 🎤 MIC CLICK
   const onMicClick = useCallback(async () => {
     if (recording) {
@@ -54,14 +53,31 @@ export function InterviewScreen({ onAnswerCaptured, config = {} }) {
     await start()
   }, [recording, start, stop])
 
-  // 🎧 AI speaking simulation
+  // 🎧 Speak current interviewer prompt at start of each turn
   useEffect(() => {
-    const id = setTimeout(() => {
+    if (!aiPrompt || !aiPrompt.trim()) {
       setAiSpeaking(false)
-    }, 2500)
+      return
+    }
 
-    return () => clearTimeout(id)
-  }, [])
+    setAiSpeaking(true)
+    if (!('speechSynthesis' in window)) {
+      const id = window.setTimeout(() => setAiSpeaking(false), 2500)
+      return () => window.clearTimeout(id)
+    }
+
+    window.speechSynthesis.cancel()
+    const utter = new SpeechSynthesisUtterance(aiPrompt)
+    utter.rate = 1.0
+    utter.pitch = 1.0
+    utter.onend = () => setAiSpeaking(false)
+    utter.onerror = () => setAiSpeaking(false)
+    window.speechSynthesis.speak(utter)
+
+    return () => {
+      window.speechSynthesis.cancel()
+    }
+  }, [aiPrompt])
 
   // 🎤 after recording
   useEffect(() => {
