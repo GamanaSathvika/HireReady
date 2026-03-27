@@ -83,6 +83,7 @@ body {
 
 .heading h1 span {
   display: block;
+  font-size: 25px;
 }
 
 .highlight {
@@ -338,3 +339,154 @@ body {
   padding: 12px 14px;
 }
 
+/* ===== LOGIN PAGE ===== */
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  background: #0a0a0a;
+}
+
+/* LEFT SIDE */
+.login-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+
+  /* subtle glow same as your theme */
+  background-image:
+    radial-gradient(circle at 60% 50%, rgba(250, 204, 21, 0.12), transparent 60%);
+}
+
+.quote-box {
+  max-width: 420px;
+}
+
+.quote-box h1 {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #ffffff;
+}
+
+.quote-box h1 span {
+  color: #facc15;
+  text-shadow: 0 0 18px rgba(250, 204, 21, 0.35);
+}
+
+.tagline {
+  margin-top: 16px;
+  color: #737373;
+  font-size: 16px;
+}
+
+/* RIGHT SIDE */
+.login-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+/* CARD */
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  background: #111111;
+  border-radius: 16px;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* BRAND */
+.login-brand {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+/* FORM */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-input {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #ccc;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.login-input:focus {
+  border-color: #facc15;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.15);
+}
+
+/* BUTTON */
+.login-btn {
+  margin-top: 6px;
+  background: #facc15;
+  color: black;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.login-btn:hover {
+  transform: scale(1.03);
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.4);
+}
+
+/* FOOTER */
+.login-footer {
+  margin-top: 16px;
+  text-align: center;
+  color: #737373;
+  font-size: 14px;
+}
+
+.login-footer span {
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.login-footer span:hover {
+  text-decoration: underline;
+}
+
+/* ===== MOBILE ===== */
+
+@media (max-width: 768px) {
+  .login-page {
+    flex-direction: column;
+  }
+
+  .login-left {
+    display: none; /* clean mobile view */
+  }
+
+  .login-right {
+    flex: none;
+    width: 100%;
+  }
+}
+.login-footer span {
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.login-footer span:hover {
+  color: #facc15;
+}

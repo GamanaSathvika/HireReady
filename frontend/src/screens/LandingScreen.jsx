@@ -62,8 +62,8 @@ export function LandingScreen({ onStart }) {
           <div className="tag">AI INTERVIEW SIMULATOR</div>
 
           <h1>
-            <span>You’re not bad.</span>
-            <span className="highlight">Your interview skills are.</span>
+            <span>Set your role, difficulty, and mode before starting.</span>
+            <span className="highlight">Let’s get you ready</span>
           </h1>
 
           <p>Practice with an AI that gives brutally honest feedback.</p>

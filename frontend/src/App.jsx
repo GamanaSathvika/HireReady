@@ -1,59 +1,52 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { buildMockFeedback } from './mocks/mockFeedback'
 import { FeedbackScreen } from './screens/FeedbackScreen'
 import { InterviewScreen } from './screens/InterviewScreen'
 import { LandingScreen } from './screens/LandingScreen'
 import { ProcessingScreen } from './screens/ProcessingScreen'
-
-const screens = {
-  landing: LandingScreen,
-  interview: InterviewScreen,
-  processing: ProcessingScreen,
-  feedback: FeedbackScreen,
-}
+import { LoginScreen } from './screens/LoginScreen'
+import { SignupScreen } from './screens/SignupScreen'
 
 export default function App() {
-  const [screen, setScreen] = useState('landing')
+  const [screen, setScreen] = useState('login')
   const [feedback, setFeedback] = useState(null)
   const [interviewConfig, setInterviewConfig] = useState(null)
 
   const MotionDiv = motion.div
-  const Screen = useMemo(() => screens[screen] ?? LandingScreen, [screen])
 
-  // 🔥 NAVIGATION FUNCTION (push to browser history)
+  // 🔥 NAVIGATION
   function navigate(nextScreen) {
     window.history.pushState({ screen: nextScreen }, '', '')
     setScreen(nextScreen)
   }
 
-  // 🔥 HANDLE BROWSER BACK BUTTON
+  // 🔥 BACK BUTTON
   useEffect(() => {
     const handlePopState = (event) => {
       if (event.state?.screen) {
         setScreen(event.state.screen)
       } else {
-        setScreen('landing')
+        setScreen('login')
       }
     }
 
     window.addEventListener('popstate', handlePopState)
-
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
-  // 🔥 INITIAL STATE SYNC
+  // 🔥 INITIAL STATE
   useEffect(() => {
-    window.history.replaceState({ screen: 'landing' }, '')
+    window.history.replaceState({ screen: 'login' }, '')
   }, [])
 
-  // 🔥 PROCESSING → FEEDBACK FLOW
+  // 🔥 PROCESSING FLOW
   useEffect(() => {
     if (screen !== 'processing') return
 
     const id = window.setTimeout(() => {
       setFeedback(buildMockFeedback())
-      navigate('feedback') // 🔥 IMPORTANT: use navigate
+      navigate('feedback')
     }, 2000)
 
     return () => window.clearTimeout(id)
@@ -62,7 +55,7 @@ export default function App() {
   function reset() {
     setFeedback(null)
     setInterviewConfig(null)
-    navigate('landing') // 🔥 IMPORTANT
+    navigate('landing')
   }
 
   return (
@@ -76,12 +69,28 @@ export default function App() {
           transition={{ duration: 0.25, ease: [0.2, 0.9, 0.2, 1] }}
         >
 
+          {/* LOGIN */}
+          {screen === 'login' && (
+            <LoginScreen
+              onLogin={() => navigate('landing')}
+              onSwitchToSignup={() => navigate('signup')} // ✅ FIXED
+            />
+          )}
+
+          {/* SIGNUP ✅ NEW */}
+          {screen === 'signup' && (
+            <SignupScreen
+              onSignup={() => navigate('landing')}
+              onSwitchToLogin={() => navigate('login')} // ✅ FIXED
+            />
+          )}
+
           {/* LANDING */}
           {screen === 'landing' && (
             <LandingScreen
               onStart={(cfg) => {
                 setInterviewConfig(cfg ?? null)
-                navigate('interview') // 🔥 FIXED
+                navigate('interview')
               }}
             />
           )}
@@ -91,7 +100,7 @@ export default function App() {
             <InterviewScreen
               config={interviewConfig}
               onAnswerCaptured={() => {
-                navigate('processing') // 🔥 FIXED
+                navigate('processing')
               }}
             />
           )}
