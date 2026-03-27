@@ -199,6 +199,7 @@
             <button id="btnSend" disabled>Send for feedback</button>
             <button id="btnSpeak" disabled>Speak feedback (TTS)</button>
             <button id="btnStopTts" disabled>Stop TTS</button>
+            <button id="btnStartOver">Start Over</button>
           </div>
 
           <div id="errBox" class="error" style="display: none"></div>
@@ -219,6 +220,8 @@
               <pre id="feedback">(none)</pre>
             </div>
           </div>
+
+          <div class="muted" id="bottomStatus">Status: Idle</div>
         </div>
       </div>
     </div>
@@ -227,6 +230,7 @@
       const $ = (id) => document.getElementById(id);
       const statusDot = $("statusDot");
       const statusText = $("statusText");
+      const bottomStatus = $("bottomStatus");
       const errBox = $("errBox");
       const meta = $("meta");
       const audioEl = $("audioEl");
@@ -239,11 +243,21 @@
       const btnSend = $("btnSend");
       const btnSpeak = $("btnSpeak");
       const btnStopTts = $("btnStopTts");
+      const btnStartOver = $("btnStartOver");
 
       let stream = null;
       let recorder = null;
       let chunks = [];
       let blob = null;
+
+      let history = [];
+      let loopActive = false;
+      let audioCtx = null;
+      let analyser = null;
+      let sourceNode = null;
+      let silenceRaf = 0;
+      let recordStartedAt = 0;
+      let belowSince = 0;
 
       function setStatus(kind, text) {
         statusText.textContent = text;
@@ -252,10 +266,15 @@
         if (kind === "bad") statusDot.classList.add("bad");
       }
 
+      function setBottomStatus(text) {
+        bottomStatus.textContent = `Status: ${text}`;
+      }
+
       function showError(msg) {
         errBox.style.display = "block";
         errBox.textContent = msg;
         setStatus("bad", "Error");
+        setBottomStatus("Error");
       }
 
       function clearError() {
@@ -278,26 +297,160 @@
         }
       }
 
-      btnRequestMic.onclick = async () => {
-        clearError();
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          setStatus("ok", "Mic ready");
-          btnStart.disabled = false;
-        } catch (e) {
-          showError(e?.message || "Microphone permission denied.");
+      function stopSilenceMonitor() {
+        if (silenceRaf) cancelAnimationFrame(silenceRaf);
+        silenceRaf = 0;
+        belowSince = 0;
+      }
+
+      function ensureAnalyser() {
+        if (!stream) return;
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+        if (sourceNode) {
+          try {
+            sourceNode.disconnect();
+          } catch {}
         }
-      };
+        if (!analyser) {
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 2048;
+          analyser.smoothingTimeConstant = 0.3;
+        }
+        sourceNode = audioCtx.createMediaStreamSource(stream);
+        sourceNode.connect(analyser);
+      }
 
-      btnStart.onclick = async () => {
+      function startSilenceMonitor() {
+        stopSilenceMonitor();
+        if (!analyser) return;
+
+        const data = new Uint8Array(analyser.fftSize);
+        const baseThreshold = 0.01;
+        const requiredMs = 2000;
+        const minRecordMs = 800;
+        const maxRecordMs = 60000;
+        let minRms = Infinity;
+        let hadSpeech = false;
+        let rmsEma = null;
+        const emaAlpha = 0.2; // smoothing factor for RMS
+
+        const tick = () => {
+          if (!loopActive) return;
+          // Always keep the RAF loop alive; MediaRecorder.state may take a moment
+          // to flip to "recording" after recorder.start().
+          silenceRaf = requestAnimationFrame(tick);
+          if (!recorder || recorder.state !== "recording") return;
+
+          analyser.getByteTimeDomainData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i++) {
+            const v = (data[i] - 128) / 128;
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / data.length);
+          const now = performance.now();
+          // Smooth out noisy RMS spikes so short pauses while speaking
+          // don't prematurely trigger "silence".
+          rmsEma = rmsEma === null ? rms : emaAlpha * rms + (1 - emaAlpha) * rmsEma;
+
+          if (!hadSpeech && rmsEma > 0 && rmsEma < minRms) minRms = rmsEma;
+
+          // Adaptive threshold: if the room is noisy, treat "silence" as near the quietest
+          // observed level rather than an absolute constant.
+          const adaptive = Number.isFinite(minRms) ? minRms * 1.6 : baseThreshold;
+          const threshold = Math.max(baseThreshold, adaptive);
+
+          if (rmsEma < threshold) {
+            // Only start counting silence after we actually detected speech.
+            if (hadSpeech && !belowSince) belowSince = now;
+          } else {
+            hadSpeech = true;
+            belowSince = 0;
+          }
+
+          const elapsed = now - recordStartedAt;
+          if (elapsed >= maxRecordMs) {
+            try {
+              recorder.stop();
+            } catch {}
+            return;
+          }
+          if (belowSince && hadSpeech && elapsed >= minRecordMs && now - belowSince >= requiredMs) {
+            // silence detected
+            try {
+              recorder.stop();
+            } catch {}
+            return;
+          }
+        };
+
+        silenceRaf = requestAnimationFrame(tick);
+      }
+
+      function speak(text) {
+        return new Promise((resolve, reject) => {
+          clearError();
+          if (!("speechSynthesis" in window)) {
+            reject(new Error("This browser does not support speechSynthesis."));
+            return;
+          }
+          if (!text || !text.trim()) {
+            resolve();
+            return;
+          }
+          window.speechSynthesis.cancel();
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.rate = 1.0;
+          utter.pitch = 1.0;
+          utter.onend = () => resolve();
+          utter.onerror = (e) => reject(e?.error || new Error("TTS failed."));
+          btnStopTts.disabled = false;
+          setStatus("ok", "Speaking…");
+          setBottomStatus("Speaking...");
+          window.speechSynthesis.speak(utter);
+        });
+      }
+
+      async function postInterview(audioBlob) {
+        const apiBase = $("apiBase").value.trim().replace(/\/+$/, "");
+        const url = `${apiBase}/interview`;
+
+        const fd = new FormData();
+        const ext = audioBlob.type.includes("mp4") ? "mp4" : "webm";
+        fd.append("audio", audioBlob, `recording.${ext}`);
+        fd.append("history", JSON.stringify(history));
+
+        setStatus("ok", "Thinking…");
+        setBottomStatus("Thinking...");
+
+        const res = await fetch(url, { method: "POST", body: fd });
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error(`Non-JSON response: ${text.slice(0, 200)}`);
+        }
+        if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+        return data;
+      }
+
+      async function greetAndStart() {
+        loopActive = true;
+        const greeting = "Hello, I'm ready when you are. Tell me about your startup.";
+        feedbackEl.textContent = greeting;
+        btnSpeak.disabled = false;
+        await speak(greeting);
+        if (!loopActive) return;
+        await startRecordingLoop();
+      }
+
+      async function startRecordingLoop() {
         clearError();
-        transcriptEl.textContent = "(none)";
-        feedbackEl.textContent = "(none)";
-        btnSpeak.disabled = true;
-        btnStopTts.disabled = true;
-
         if (!stream) {
-          showError("Mic not ready. Click “Request mic permission” first.");
+          setStatus("bad", "Mic needed");
+          setBottomStatus("Click “Request mic permission” to begin.");
           return;
         }
 
@@ -323,24 +476,72 @@
           if (ev.data && ev.data.size > 0) chunks.push(ev.data);
         };
 
-        recorder.onstop = () => {
+        recorder.onstop = async () => {
+          stopSilenceMonitor();
           blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
           const url = URL.createObjectURL(blob);
           audioEl.src = url;
           meta.textContent = `mimeType=${blob.type} size=${Math.round(blob.size / 1024)}KB`;
-          btnSend.disabled = false;
-          setStatus("ok", "Recorded");
+
+          if (!loopActive) return;
+
+          try {
+            const data = await postInterview(blob);
+            transcriptEl.textContent = data.transcript || "";
+            feedbackEl.textContent = data.reply || "";
+            history = Array.isArray(data.history) ? data.history : [];
+
+            if (data.done) {
+              setStatus("ok", "Interview Complete");
+              setBottomStatus("Interview Complete");
+              btnSpeak.disabled = !data.reply;
+              await speak(data.reply || "");
+              loopActive = false;
+              return;
+            }
+
+            btnSpeak.disabled = !data.reply;
+            await speak(data.reply || "");
+            if (!loopActive) return;
+            await startRecordingLoop();
+          } catch (e) {
+            showError(e?.message || "Request failed.");
+          }
         };
 
+        recordStartedAt = performance.now();
+        ensureAnalyser();
         recorder.start();
-        btnStart.disabled = true;
-        btnStop.disabled = false;
-        btnSend.disabled = true;
-        setStatus("ok", "Recording…");
+        setStatus("ok", "Listening…");
+        setBottomStatus("Listening...");
+        startSilenceMonitor();
+      }
+
+      btnRequestMic.onclick = async () => {
+        clearError();
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          setStatus("ok", "Mic ready");
+          btnStart.disabled = false;
+          setBottomStatus(loopActive ? "Ready" : "Mic ready");
+        } catch (e) {
+          showError(e?.message || "Microphone permission denied.");
+        }
+      };
+
+      btnStart.onclick = async () => {
+        // Manual start becomes "start interview loop" (keeps UI, changes behavior).
+        loopActive = true;
+        transcriptEl.textContent = "(none)";
+        feedbackEl.textContent = "(none)";
+        history = [];
+        await greetAndStart();
       };
 
       btnStop.onclick = () => {
         clearError();
+        loopActive = false;
+        stopSilenceMonitor();
         if (recorder && recorder.state !== "inactive") {
           recorder.stop();
         }
@@ -349,48 +550,8 @@
       };
 
       btnSend.onclick = async () => {
-        clearError();
-        if (!blob) {
-          showError("No recording available.");
-          return;
-        }
-
-        const apiBase = $("apiBase").value.trim().replace(/\/+$/, "");
-        const url = `${apiBase}/feedback`;
-
-        const fd = new FormData();
-        const ext = blob.type.includes("mp4") ? "mp4" : "webm";
-        fd.append("audio", blob, `recording.${ext}`);
-
-        btnSend.disabled = true;
-        btnStart.disabled = true;
-        btnStop.disabled = true;
-        setStatus("ok", "Uploading…");
-
-        try {
-          const res = await fetch(url, { method: "POST", body: fd });
-          const text = await res.text();
-          let data;
-          try {
-            data = JSON.parse(text);
-          } catch {
-            throw new Error(`Non-JSON response: ${text.slice(0, 200)}`);
-          }
-
-          if (!res.ok) {
-            throw new Error(data?.error || `Request failed (${res.status})`);
-          }
-
-          transcriptEl.textContent = data.transcript || "";
-          feedbackEl.textContent = data.feedback || "";
-          btnSpeak.disabled = !data.feedback;
-          setStatus("ok", "Done");
-        } catch (e) {
-          showError(e?.message || "Request failed.");
-        } finally {
-          btnSend.disabled = false;
-          btnStart.disabled = false;
-        }
+        // Kept for UI compatibility; loop posts automatically.
+        showError("The interview runs automatically. Click “Start Over” to restart.");
       };
 
       btnSpeak.onclick = () => {
@@ -421,12 +582,46 @@
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
         btnStopTts.disabled = true;
         setStatus("ok", "Stopped");
+        setBottomStatus("Stopped");
+      };
+
+      btnStartOver.onclick = async () => {
+        clearError();
+        loopActive = false;
+        stopSilenceMonitor();
+        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+        if (recorder && recorder.state !== "inactive") {
+          try {
+            recorder.stop();
+          } catch {}
+        }
+        history = [];
+        transcriptEl.textContent = "(none)";
+        feedbackEl.textContent = "(none)";
+        meta.textContent = "";
+        audioEl.removeAttribute("src");
+        audioEl.load();
+        setStatus("ok", "Idle");
+        setBottomStatus("Idle");
+        await greetAndStart();
       };
 
       window.addEventListener("beforeunload", () => {
         stopAllTracks();
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       });
+
+      // Continuous interview loop: greet immediately, then listen after TTS ends.
+      (async () => {
+        try {
+          setBottomStatus("Starting...");
+          await greetAndStart();
+        } catch (e) {
+          // If autoplay TTS is blocked, user can click "Speak feedback" or "Start recording".
+          setStatus("bad", "User action needed");
+          setBottomStatus("Browser blocked autoplay. Click “Start recording” to begin.");
+        }
+      })();
     </script>
   </body>
 </html>
