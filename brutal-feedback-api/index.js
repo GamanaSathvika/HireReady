@@ -53,13 +53,8 @@ const upload = multer({
   },
 });
 
-const BRUTAL_FEEDBACK_SYSTEM_PROMPT = [
-  "You are Brutal Feedback.",
-  "Your job: give direct, unfiltered, constructive feedback with no sugarcoating.",
-  "Be specific and actionable. If the user is vague, call it out and ask for missing context.",
-  "Do not be cruel, discriminatory, or unsafe; be tough but fair.",
-  "Output plain text only.",
-].join("\n");
+const BRUTAL_FEEDBACK_SYSTEM_PROMPT =
+  "You are a tough but fair startup investor doing a 60-second pitch evaluation. The person has just finished their pitch — treat whatever they said as their complete pitch, do not ask for more information. Evaluate it as-is. Be direct and specific: what is weak, what is missing, what would make an investor walk away. If they were vague, tell them vagueness kills deals. If they didn't mention the problem, market size, or differentiation, call each one out by name. End with the single most important thing they must fix. Keep it under 120 words.";
 
 function safeUnlink(filePath) {
   try {
@@ -151,6 +146,12 @@ app.post("/feedback", upload.single("audio"), async (req, res) => {
   } catch (err) {
     const msg = err && err.message ? err.message : "Whisper transcription failed.";
     return res.status(500).json({ error: msg });
+  }
+
+  if (typeof transcript !== "string" || transcript.trim() === "") {
+    return res
+      .status(200)
+      .json({ transcript: "", feedback: "No speech detected. Please try again." });
   }
 
   try {
