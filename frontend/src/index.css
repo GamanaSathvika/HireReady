@@ -813,3 +813,12 @@ body {
   border-radius: 8px;
   font-size: 12px;
 }
+/* smoother global transitions */
+* {
+  transition: all 0.2s ease;
+}
+
+/* better text rendering */
+body {
+  -webkit-font-smoothing: antialiased;
+}

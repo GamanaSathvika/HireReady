@@ -84,7 +84,50 @@ export function InterviewScreen({ onAnswerCaptured, onExit, config = {} }) {
   }
 
   return (
-    <ScreenShell className="min-h-screen flex items-center justify-center px-4 bg-[radial-gradient(circle_at_50%_40%,rgba(250,204,21,0.15),rgba(0,0,0,1)_60%)]">
+    <ScreenShell className="min-h-screen bg-[radial-gradient(circle_at_50%_40%,rgba(250,204,21,0.15),rgba(0,0,0,1)_60%)]">
+
+      {/* 🔥 FIXED TOP BAR */}
+      {started && (
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.3 }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-3xl px-4"
+        >
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/40 px-5 py-3 shadow-[0_16px_46px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+
+            {/* LIVE */}
+            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/70">
+              <span
+                className="h-2.5 w-2.5 rounded-full bg-red-400 animate-pulse"
+                style={{ boxShadow: '0 0 10px rgba(248,113,113,0.8)' }}
+              />
+              Live
+            </div>
+
+            {/* ROLE */}
+            <div className="max-w-[45%] truncate text-xs tracking-[0.08em] text-white/50">
+              {config.role ?? 'Frontend Developer'}
+            </div>
+
+            {/* TIMER + EXIT */}
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-sm text-white/90">
+                {progressLabel}
+              </span>
+
+              <button
+                onClick={handleExit}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs text-white/90 transition-all duration-200 hover:scale-105 hover:bg-white/20 active:scale-95"
+              >
+                <span>×</span>
+                Exit
+              </button>
+            </div>
+
+          </div>
+        </motion.div>
+      )}
 
       <MotionDiv
         initial={{ opacity: 0, scale: 0.96 }}
@@ -95,7 +138,7 @@ export function InterviewScreen({ onAnswerCaptured, onExit, config = {} }) {
 
         {/* READY SCREEN */}
         {!started && (
-          <div className="min-h-[100svh] w-full flex items-center justify-center">
+          <div className="min-h-[100svh] flex items-center justify-center px-4">
             <div className="w-full flex flex-col items-center justify-center gap-6">
               <div className="ready-card">
 
@@ -105,7 +148,6 @@ export function InterviewScreen({ onAnswerCaptured, onExit, config = {} }) {
                 </div>
 
                 <div className="ready-list">
-
                   <div className="ready-row">
                     <div className="icon">🎤</div>
                     <div className="ready-text">
@@ -129,7 +171,6 @@ export function InterviewScreen({ onAnswerCaptured, onExit, config = {} }) {
                       <span>You can stop anytime</span>
                     </div>
                   </div>
-
                 </div>
 
                 <div className="flex justify-center">
@@ -137,6 +178,7 @@ export function InterviewScreen({ onAnswerCaptured, onExit, config = {} }) {
                     Start Interview →
                   </button>
                 </div>
+
               </div>
             </div>
           </div>
@@ -144,41 +186,16 @@ export function InterviewScreen({ onAnswerCaptured, onExit, config = {} }) {
 
         {/* INTERVIEW SCREEN */}
         {started && (
-          <div className="min-h-[100svh] w-full flex flex-col items-center justify-center">
-            <div className="sticky top-4 z-30 w-full max-w-3xl">
-              <div className="mb-8 flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/35 px-5 py-3 shadow-[0_16px_46px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/72">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full bg-red-400/90 animate-pulse"
-                    style={{ boxShadow: '0 0 10px rgba(248,113,113,0.85)' }}
-                    aria-hidden="true"
-                  />
-                  <span>Live</span>
-                </div>
-
-                <div className="max-w-[45%] truncate text-xs tracking-[0.08em] text-white/45">
-                  {config.role ?? 'Frontend Developer'}
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-sm text-white/92">{progressLabel}</span>
-                  <button
-                    onClick={handleExit}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-4 py-1.5 text-xs text-white/88 transition-all duration-200 hover:scale-105 hover:bg-white/14 active:scale-95"
-                  >
-                    <span aria-hidden="true">×</span>
-                    <span>Exit</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+          <div className="min-h-[100svh] flex flex-col items-center justify-center pt-24 px-4">
 
             <div className="flex flex-col items-center justify-center gap-6 text-center">
+              
               {aiSpeaking && (
                 <div className="text-yellow-300/90 animate-pulse text-sm tracking-wide">
                   Asking question...
                 </div>
               )}
+
               {!aiSpeaking && (
                 <div className="text-white/55 text-sm">
                   {speaking ? 'Listening to your response...' : 'Listening...'}
@@ -191,7 +208,7 @@ export function InterviewScreen({ onAnswerCaptured, onExit, config = {} }) {
                 className="h-[300px] w-[300px]"
               >
                 <div className="relative z-10 grid place-items-center h-36 w-36 rounded-full bg-black/35 backdrop-blur-md">
-                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
                     <path
                       d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z"
                       stroke={speaking ? '#FACC15' : '#E5E5E5'}
@@ -219,6 +236,7 @@ export function InterviewScreen({ onAnswerCaptured, onExit, config = {} }) {
                   Microphone access failed: {String(error?.message ?? error)}
                 </div>
               )}
+
             </div>
           </div>
         )}
