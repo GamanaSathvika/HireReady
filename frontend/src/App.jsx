@@ -1,18 +1,11 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useState } from 'react'
-import { BrutalLayout } from './components/BrutalLayout'
 import { InterviewFeedbackScreen } from './screens/InterviewFeedbackScreen'
 import { InterviewScreen } from './screens/InterviewScreen'
 import { LandingScreen } from './screens/LandingScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { SignupScreen } from './screens/SignupScreen'
 import { getApiHealth } from './utils/api'
-import { formatDurationMMSS, parseDurationToSeconds } from './utils/duration'
-
-function durationLabelFromConfig(duration) {
-  const sec = parseDurationToSeconds(duration)
-  return formatDurationMMSS(sec)
-}
 
 export default function App() {
   const [screen, setScreen] = useState('login')
@@ -22,7 +15,6 @@ export default function App() {
   const [groqKeyMissing, setGroqKeyMissing] = useState(false)
   const [interviewEndReport, setInterviewEndReport] = useState(null)
   const MotionDiv = motion.div
-  const countdownLabel = durationLabelFromConfig(interviewConfig?.duration)
 
   // 🔥 NAVIGATION
   function navigate(nextScreen) {
@@ -156,38 +148,45 @@ export default function App() {
             />
           )}
 
-          {/* LANDING */}
+          {/* LANDING — full viewport, no chrome */}
           {screen === 'landing' && (
-            <BrutalLayout countdown={countdownLabel}>
-              {!apiReady && (
-                <div className="mb-3 rounded-[10px] border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                  API is unreachable. Start `brutal-feedback-api` and refresh.
-                </div>
-              )}
-              {apiReady && groqKeyMissing && (
-                <div className="mb-3 rounded-[10px] border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
-                  Voice and AI need <code className="rounded bg-black/30 px-1">GROQ_API_KEY</code>. Copy{' '}
-                  <code className="rounded bg-black/30 px-1">.env.example</code> to{' '}
-                  <code className="rounded bg-black/30 px-1">.env</code> in the project root or{' '}
-                  <code className="rounded bg-black/30 px-1">brutal-feedback-api/</code>, add your key from{' '}
-                  <a
-                    href="https://console.groq.com/keys"
-                    className="underline"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    console.groq.com/keys
-                  </a>
-                  , restart the API, then refresh.
-                </div>
-              )}
-              <LandingScreen
-                onStart={(cfg) => {
-                  setInterviewConfig(cfg ?? null)
-                  navigate('interview')
-                }}
-              />
-            </BrutalLayout>
+            <div className="interview-landing-page flex min-h-[100svh] w-full flex-col text-[#e5e5e5]">
+              <div className="mx-auto w-full max-w-[900px] flex-shrink-0 space-y-3 px-5 pt-6">
+                {!apiReady && (
+                  <div className="rounded-[10px] border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                    API is unreachable. Start `brutal-feedback-api` and refresh.
+                  </div>
+                )}
+                {apiReady && groqKeyMissing && (
+                  <div className="rounded-[10px] border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+                    Voice and AI need <code className="rounded bg-black/30 px-1">GROQ_API_KEY</code>. Copy{' '}
+                    <code className="rounded bg-black/30 px-1">.env.example</code> to{' '}
+                    <code className="rounded bg-black/30 px-1">.env</code> in the project root or{' '}
+                    <code className="rounded bg-black/30 px-1">brutal-feedback-api/</code>, add your key from{' '}
+                    <a
+                      href="https://console.groq.com/keys"
+                      className="underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      console.groq.com/keys
+                    </a>
+                    , restart the API, then refresh.
+                  </div>
+                )}
+              </div>
+              <div
+                className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-5 pb-8"
+                data-landing-scroll
+              >
+                <LandingScreen
+                  onStart={(cfg) => {
+                    setInterviewConfig(cfg ?? null)
+                    navigate('interview')
+                  }}
+                />
+              </div>
+            </div>
           )}
 
           {/* INTERVIEW */}
