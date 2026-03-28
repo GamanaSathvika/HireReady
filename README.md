@@ -23,7 +23,7 @@ HireReady targets a tight loop: **speak naturally in the browser → accurate tr
 | **Live closed captions (client-only)** | While recording, the browser’s **Web Speech API** (`SpeechRecognition`) shows **live captions** in parallel with `MediaRecorder`. Captions are **display-only**; the official transcript for the UI still comes from **Whisper** on the server. |
 | **Brutal feedback (pitch)** | Separate flow: upload a short voice recording; the API transcribes it and returns **tough but fair** investor-style written feedback (`POST /feedback`). |
 
-The main **no-build** experience lives in `brutal-feedback-web/index.html` (vanilla HTML/CSS/JS). A **React + Vite** app also exists under `frontend/` for extended UI work.
+The **product frontend** is the **React** app in **`frontend/`** (Vite, screens for landing, interview, feedback, auth-style flows, voice UI). The **`brutal-feedback-web/`** folder is an optional **static HTML** prototype (single `index.html`) you can open or serve without a build step—useful for quick API checks, not the main UI.
 
 ---
 
@@ -47,24 +47,26 @@ The main **no-build** experience lives in `brutal-feedback-web/index.html` (vani
 - `POST /interview` — multipart: `audio`, `history`, `role`, `experienceLevel`, `message`, `timerExpired` → transcript + interviewer reply + updated history  
 - `POST /feedback` — multipart: `audio` → transcript + brutal pitch feedback  
 
-### Client — `brutal-feedback-web/`
-
-| Layer | Choice |
-|--------|--------|
-| UI | Single-page **vanilla HTML/CSS/JS** (no bundler) |
-| Audio capture | **MediaRecorder** + **getUserMedia** |
-| Live captions | **Web Speech API** (`SpeechRecognition` / `webkitSpeechRecognition`), optional (graceful skip if unsupported) |
-| Playback | **Web Speech API** (`speechSynthesis`) for interviewer voice |
-| API | `fetch` to `API_BASE` (default `http://localhost:3001`) |
-
-### Client — `frontend/`
+### Frontend — `frontend/` (primary)
 
 | Layer | Choice |
 |--------|--------|
 | Framework | **React 19** |
-| Build | **Vite 8** |
+| Build / dev | **Vite 8** |
 | Styling | **Tailwind CSS 4** |
 | Motion | **Framer Motion** |
+| Voice / audio | **MediaRecorder** + **getUserMedia** (e.g. `useMediaRecorder`), timers, API client in `src/utils/api.js` |
+| Structure | Screen-based app: landing, interview, processing, feedback, login/signup shells (`src/screens/`, `src/components/`) |
+
+Point the app at the API with **`VITE_API_BASE`** (see [Environment variables](#environment-variables)).
+
+### Static prototype — `brutal-feedback-web/` (optional)
+
+| Layer | Choice |
+|--------|--------|
+| UI | Single-file **HTML/CSS/JS** (no bundler)—reference or smoke-test against the API |
+| Audio / speech | **MediaRecorder**, optional **Web Speech** captions + **speechSynthesis** (features may differ from the React app) |
+| API | Hard-coded or editable `API_BASE` toward `brutal-feedback-api` |
 
 ### Repository layout
 
@@ -73,8 +75,8 @@ HireReady/
 ├── .env.example              # Copy to root `.env` or `brutal-feedback-api/.env`
 ├── README.md                 # This file
 ├── brutal-feedback-api/      # Express API (Groq Whisper + chat)
-├── brutal-feedback-web/      # Mock interview + pitch demo (index.html)
-└── frontend/                 # React + Vite app (optional)
+├── frontend/                 # React + Vite — main frontend
+└── brutal-feedback-web/      # Optional static HTML prototype (index.html)
 ```
 
 ---
@@ -111,13 +113,7 @@ npm run start
 
 Server: **http://localhost:3001** (verify with `GET /health`).
 
-### 2. Mock interview (vanilla page)
-
-Open `brutal-feedback-web/index.html` in a **desktop browser** (Chrome or Edge recommended for `MediaRecorder` + Speech Recognition + TTS).
-
-If the HTML is opened as `file://`, some browsers restrict mic/CORS; serving the folder with any static server avoids that. Ensure `API_BASE` in `index.html` matches your API URL.
-
-### 3. React frontend (optional)
+### 2. Frontend (React)
 
 ```bash
 cd frontend
@@ -125,14 +121,20 @@ npm install
 npm run dev
 ```
 
-Configure `VITE_API_BASE` if the API is not on the default host/port.
+Open the URL Vite prints (usually **http://localhost:5173**). Set **`VITE_API_BASE`** in `frontend/.env` if the API is not at the default (e.g. `http://localhost:3001`). For CORS in production-like setups, set **`FRONTEND_ORIGIN`** on the API to match your Vite origin.
+
+### 3. Static prototype (optional)
+
+To run the legacy single-page demo without Node for the UI, open or serve **`brutal-feedback-web/index.html`** and align **`API_BASE`** inside the file with your API. Prefer **Chrome or Edge** if you rely on advanced mic / speech APIs there.
+
+If you open the file as `file://`, some browsers restrict the microphone or CORS; a simple static server avoids that.
 
 ---
 
 ## Security and limitations notes
 
 - **API key** must stay on the server; never embed `GROQ_API_KEY` in front-end code.  
-- **Live captions** use the browser’s speech engine (often cloud-backed); they are **not** sent to your backend and can differ slightly from Whisper.  
+- **Live captions** (where implemented, e.g. static prototype) use the browser’s speech engine (often cloud-backed); they are **not** sent to your backend and can differ from Whisper.  
 - **Groq** usage is subject to their quotas and terms.  
 
 ---
