@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 // ---------------------------------------------------------------------------
 const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:3001').replace(/\/+$/, '')
 const AI_REPLY_DELAY_MS = 2400
-const SILENCE_AUTO_STOP_MS = 5000
+const SILENCE_AUTO_STOP_MS = 2500
 
 const ROLE_GROUPS = [
   {
