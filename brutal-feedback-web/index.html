@@ -335,31 +335,31 @@
         }
       }
       .interviewerAvatarWrap.state-speaking {
-        animation: avatarSpeaking 0.42s ease-in-out infinite;
+        animation: avatarSpeakingSoft 2.4s ease-in-out infinite;
         border-color: rgba(68, 209, 122, 0.55);
       }
-      @keyframes avatarSpeaking {
+      @keyframes avatarSpeakingSoft {
         0%,
         100% {
           transform: scale(1);
-          box-shadow: 0 0 0 0 rgba(68, 209, 122, 0.35);
+          box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
         }
         50% {
-          transform: scale(1.05);
-          box-shadow: 0 0 22px 8px rgba(68, 209, 122, 0.28);
+          transform: scale(1.02);
+          box-shadow: 0 0 20px 6px rgba(68, 209, 122, 0.22);
         }
       }
       .interviewerAvatarWrap.state-speaking .interviewerAvatarSvg {
-        animation: avatarNod 0.42s ease-in-out infinite;
+        animation: none;
       }
-      @keyframes avatarNod {
-        0%,
-        100% {
-          transform: translateY(0);
-        }
-        50% {
-          transform: translateY(1.5px);
-        }
+      #avatarMouthCluster {
+        transition: transform 0.06s ease-out;
+      }
+      #avatarMouthCluster.mouth-open {
+        transform: translate(50px, 55.6px);
+      }
+      #avatarMouthCluster:not(.mouth-open) {
+        transform: translate(50px, 55px);
       }
       .interviewerBio {
         display: flex;
@@ -422,13 +422,28 @@
               <ellipse cx="59" cy="42" rx="3.2" ry="2.2" fill="#1a1510" />
               <ellipse cx="41.5" cy="41.2" rx="1" ry="0.7" fill="rgba(255,255,255,0.35)" />
               <ellipse cx="59.5" cy="41.2" rx="1" ry="0.7" fill="rgba(255,255,255,0.35)" />
-              <path
-                d="M43 54 Q50 59 57 54"
-                fill="none"
-                stroke="#6b5344"
-                stroke-width="1.8"
-                stroke-linecap="round"
-              />
+              <g id="avatarMouthCluster" transform="translate(50, 55)">
+                <path
+                  id="avatarMouthClosed"
+                  d="M -8 0 Q 0 3.6 8 0"
+                  fill="none"
+                  stroke="#6b5344"
+                  stroke-width="1.85"
+                  stroke-linecap="round"
+                />
+                <ellipse
+                  id="avatarMouthOpen"
+                  cx="0"
+                  cy="1.8"
+                  rx="5.8"
+                  ry="4.2"
+                  fill="#2a1814"
+                  stroke="#5a4034"
+                  stroke-width="0.45"
+                  opacity="0"
+                />
+                <ellipse cx="-2" cy="0.5" rx="2" ry="1.1" fill="rgba(255,255,255,0.12)" opacity="0" id="avatarMouthTeeth" />
+              </g>
             </svg>
           </div>
           <div class="interviewerBio">
@@ -485,9 +500,7 @@
             <button class="toggleBtn idle" id="btnStartNewInterview">Start New Interview</button>
           </div>
           <button class="toggleBtn idle" id="btnToggle">Start Interview</button>
-          <div id="captions">
-            <span class="caption-final" id="captionFinal"></span><span class="caption-interim" id="captionInterim"></span>
-          </div>
+          <div id="captions"></div>
         </div>
       </div>
     </div>
@@ -636,11 +649,49 @@
       let timerExpiredTriggered = false;
       let liveRecognition = null;
       let captionsStopping = false;
-      let captionFlushRaf = 0;
-      let captionEventPending = null;
+      let finalTranscript = "";
+      let avatarMouthCloseTimer = 0;
+      let avatarTalkFallbackTimer = 0;
+      let avatarLastWordAt = 0;
+
+      function setAvatarMouthVisual(open) {
+        const cluster = $("avatarMouthCluster");
+        const closedP = $("avatarMouthClosed");
+        const openE = $("avatarMouthOpen");
+        const teeth = $("avatarMouthTeeth");
+        if (!cluster || !closedP || !openE) return;
+        cluster.classList.toggle("mouth-open", Boolean(open));
+        closedP.setAttribute("opacity", open ? "0" : "1");
+        openE.setAttribute("opacity", open ? "1" : "0");
+        if (teeth) teeth.setAttribute("opacity", open ? "0.72" : "0");
+      }
+      function scheduleAvatarMouthClose(ms) {
+        if (avatarMouthCloseTimer) clearTimeout(avatarMouthCloseTimer);
+        avatarMouthCloseTimer = window.setTimeout(() => {
+          avatarMouthCloseTimer = 0;
+          setAvatarMouthVisual(false);
+        }, ms);
+      }
+      function pulseAvatarMouth() {
+        setAvatarMouthVisual(true);
+        scheduleAvatarMouthClose(36 + Math.random() * 52);
+      }
+      function stopAvatarMouthSync() {
+        if (avatarMouthCloseTimer) {
+          clearTimeout(avatarMouthCloseTimer);
+          avatarMouthCloseTimer = 0;
+        }
+        if (avatarTalkFallbackTimer) {
+          clearInterval(avatarTalkFallbackTimer);
+          avatarTalkFallbackTimer = 0;
+        }
+        setAvatarMouthVisual(false);
+      }
       const API_BASE = "http://localhost:3001";
       /** Extra pause after your answer is processed, before the interviewer speaks (ms). */
       const AI_REPLY_DELAY_MS = 2400;
+      /** How long the mic must stay quiet after speech before auto-stopping (end-of-answer). */
+      const SILENCE_AUTO_STOP_MS = 5000;
       function sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
       }
@@ -819,11 +870,6 @@
       }
       function stopLiveCaptions() {
         captionsStopping = true;
-        if (captionFlushRaf) {
-          cancelAnimationFrame(captionFlushRaf);
-          captionFlushRaf = 0;
-        }
-        captionEventPending = null;
         if (liveRecognition) {
           try {
             liveRecognition.stop();
@@ -832,42 +878,15 @@
         }
         if (captionsEl) {
           captionsEl.style.display = "none";
+          captionsEl.innerHTML = "";
         }
-        const capF = $("captionFinal");
-        const capI = $("captionInterim");
-        if (capF) capF.textContent = "";
-        if (capI) capI.textContent = "";
-      }
-      function flushCaptionDOM() {
-        captionFlushRaf = 0;
-        const event = captionEventPending;
-        captionEventPending = null;
-        if (!event || !captionsEl || captionsStopping) return;
-        const capF = $("captionFinal");
-        const capI = $("captionInterim");
-        if (!capF || !capI) return;
-        let confirmed = "";
-        let interimTranscript = "";
-        for (let i = 0; i < event.results.length; i++) {
-          const res = event.results[i];
-          const text = res[0]?.transcript ?? "";
-          if (res.isFinal) {
-            confirmed += text + " ";
-          } else {
-            interimTranscript += text;
-          }
-        }
-        capF.textContent = confirmed;
-        capI.textContent = interimTranscript;
-        captionsEl.scrollTop = captionsEl.scrollHeight;
+        finalTranscript = "";
       }
       function startLiveCaptions() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition || !captionsEl) return;
-        const capF = $("captionFinal");
-        const capI = $("captionInterim");
-        if (capF) capF.textContent = "";
-        if (capI) capI.textContent = "";
+        finalTranscript = "";
+        captionsEl.innerHTML = "";
         captionsEl.style.display = "block";
         captionsStopping = false;
         const recognition = new SpeechRecognition();
@@ -875,17 +894,25 @@
         recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = "en-US";
-        recognition.maxAlternatives = 1;
         recognition.onresult = (event) => {
-          captionEventPending = event;
-          if (!captionFlushRaf) {
-            captionFlushRaf = requestAnimationFrame(flushCaptionDOM);
+          if (!captionsEl || captionsStopping) return;
+          let interimTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const text = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += text + " ";
+            } else {
+              interimTranscript += text;
+            }
           }
+          captionsEl.innerHTML =
+            `<span class="caption-final">${escapeHtml(finalTranscript)}</span>` +
+            `<span class="caption-interim">${escapeHtml(interimTranscript)}</span>`;
+          captionsEl.scrollTop = captionsEl.scrollHeight;
         };
         recognition.onerror = () => {};
         recognition.onend = () => {
           if (captionsStopping) {
-            captionsStopping = false;
             return;
           }
           if (loopActive && recorder && recorder.state === "recording" && liveRecognition === recognition) {
@@ -938,7 +965,7 @@
         if (!analyser) return;
         const data = new Uint8Array(analyser.fftSize);
         const baseThreshold = 0.01;
-        const requiredMs = 800;
+        const requiredMs = SILENCE_AUTO_STOP_MS;
         const minRecordMs = 800;
         const maxRecordMs = 60000;
         let minRms = Infinity;
@@ -994,13 +1021,41 @@
             return;
           }
           console.log("TTS input:", text);
+          stopAvatarMouthSync();
           setStatus("speaking");
           window.speechSynthesis.cancel();
           const utter = new SpeechSynthesisUtterance(text);
-          utter.rate = 1.0;
-          utter.pitch = 1.0;
-          utter.onend = () => resolve();
-          utter.onerror = (e) => reject(e?.error || new Error("TTS failed."));
+          utter.rate = 0.98;
+          utter.pitch = 1.02;
+          const cleanup = () => {
+            stopAvatarMouthSync();
+          };
+          utter.onstart = () => {
+            avatarLastWordAt = performance.now();
+            pulseAvatarMouth();
+            avatarTalkFallbackTimer = window.setInterval(() => {
+              const gap = performance.now() - avatarLastWordAt;
+              if (gap > 140 && Math.random() < 0.42) {
+                pulseAvatarMouth();
+                avatarLastWordAt = performance.now() - 60;
+              }
+            }, 88);
+          };
+          utter.onboundary = (e) => {
+            avatarLastWordAt = performance.now();
+            const n = String(e?.name || "").toLowerCase();
+            if (n === "word" || n === "sentence") {
+              pulseAvatarMouth();
+            }
+          };
+          utter.onend = () => {
+            cleanup();
+            resolve();
+          };
+          utter.onerror = (e) => {
+            cleanup();
+            reject(e?.error || new Error("TTS failed."));
+          };
           window.speechSynthesis.speak(utter);
         });
       }
@@ -1054,6 +1109,7 @@
         stopCountdown();
         stopSilenceMonitor();
         stopLiveCaptions();
+        stopAvatarMouthSync();
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
         if (recorder && recorder.state !== "inactive") {
           try {
@@ -1106,6 +1162,7 @@
         loopActive = false;
         stopSilenceMonitor();
         stopLiveCaptions();
+        stopAvatarMouthSync();
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
         if (recorder && recorder.state !== "inactive") {
           try {
@@ -1161,6 +1218,7 @@
               loopActive = false;
               stopCountdown();
               stopSilenceMonitor();
+              stopAvatarMouthSync();
               if ("speechSynthesis" in window) window.speechSynthesis.cancel();
               renderFeedbackReport(message);
               feedbackPanel.classList.add("show");
@@ -1252,6 +1310,7 @@
       })();
       window.addEventListener("beforeunload", () => {
         stopLiveCaptions();
+        stopAvatarMouthSync();
         stopAllTracks();
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       });
