@@ -19,6 +19,8 @@ const METRIC_KEYS = [
   { key: 'Confidence', label: 'Confidence' },
 ]
 
+const ACCENT = '#FACC15'
+
 function parseFeedbackBlocks(message) {
   const text = String(message || '').trim()
   if (!text) return []
@@ -79,11 +81,19 @@ function overallSummaryLine(body, score) {
   return t || 'Needs significant improvement before applying.'
 }
 
-function scoreTone(n) {
-  if (n == null) return { text: 'text-white/75', fill: 'bg-white/30' }
-  if (n <= 4) return { text: 'text-red-400', fill: 'bg-red-400' }
-  if (n <= 6) return { text: 'text-amber-300', fill: 'bg-[#ffb547]' }
-  return { text: 'text-[#ffb547]', fill: 'bg-[#ffb547]' }
+/** Red / orange / yellow–gold by band for category scores */
+function categoryScoreClass(n) {
+  if (n == null) return 'text-[#A1A1AA]'
+  if (n <= 4) return 'text-red-400'
+  if (n <= 6) return 'text-orange-400'
+  return 'text-[#FACC15]'
+}
+
+function barGradientForScore(n) {
+  if (n == null) return 'from-zinc-600 to-zinc-500'
+  if (n <= 4) return 'from-red-600 to-red-400'
+  if (n <= 6) return 'from-orange-600 to-amber-400'
+  return 'from-[#EAB308] to-[#FACC15]'
 }
 
 function formatSessionClock(seconds) {
@@ -93,24 +103,29 @@ function formatSessionClock(seconds) {
   return `${m}m ${String(r).padStart(2, '0')}s`
 }
 
-function Pill({ children, className = '' }) {
+function formatPlannedMin(seconds) {
+  const m = Math.max(1, Math.round((seconds || 600) / 60))
+  return `${m} min`
+}
+
+function Badge({ children }) {
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${className}`}
-    >
+    <span className="inline-flex items-center rounded-full bg-[#27272A] px-3 py-1 text-[12px] font-medium leading-none text-[#E4E4E7]">
       {children}
     </span>
   )
 }
 
-function ScoreBar({ value, max = 10 }) {
+function ScoreBarFill({ value, max = 10 }) {
   const pct = Math.min(100, Math.max(0, ((value ?? 0) / max) * 100))
-  const tone = scoreTone(value)
+  const grad = barGradientForScore(value)
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.08]">
-      <div
-        className={`h-full rounded-full transition-all ${tone.fill}`}
-        style={{ width: `${pct}%` }}
+    <div className="h-2.5 w-full overflow-hidden rounded-full bg-[#27272A]">
+      <motion.div
+        className={`h-full rounded-full bg-gradient-to-r ${grad}`}
+        initial={{ width: 0 }}
+        animate={{ width: `${pct}%` }}
+        transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
       />
     </div>
   )
@@ -157,191 +172,191 @@ export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
   const qCount = session?.questionCount ?? 0
   const mode = session?.mode || 'Voice'
 
+  const improveParagraph =
+    improveLines.length > 0
+      ? improveLines.join(' ')
+      : 'See full detailed breakdown above. Work on structuring answers and deepening technical depth. Prepare a range of project and challenge-related answers.'
+
+  const strengthsParagraph =
+    strengthBlocks.length > 0
+      ? strengthBlocks.map((b) => `${b.heading}: ${b.body}`).join('\n\n')
+      : null
+
   const container = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
-      transition: { staggerChildren: 0.07, delayChildren: 0.05 },
+      transition: { staggerChildren: 0.06, delayChildren: 0.04 },
     },
   }
 
   const item = {
-    hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.2, 0.9, 0.2, 1] } },
+    hidden: { opacity: 0, y: 10 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.2, 0.9, 0.2, 1] } },
   }
-
-  const strengthsBody =
-    strengthBlocks.length > 0
-      ? strengthBlocks.map((b, i) => (
-          <div key={i} className="mt-3 first:mt-0">
-            <div className="text-[13px] font-semibold text-[#ffb547]/90">{b.heading}</div>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-white/70 whitespace-pre-wrap">
-              {b.body}
-            </p>
-          </div>
-        ))
-      : (
-          <p className="mt-2 text-[13px] leading-relaxed text-white/55">
-            No structured sections parsed from the model reply.
-          </p>
-        )
-
-  const improveDefault =
-    'See full detailed breakdown above. Work on structuring answers and deepening technical depth. Prepare a range of project and challenge-related answers.'
 
   return (
     <div
-      className="min-h-[100svh] bg-[#050505] text-[#f3f3f3]"
-      style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}
+      className="min-h-[100svh] bg-[#0B0B0B] text-white antialiased"
+      style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif' }}
     >
-      <div className="mx-auto max-w-[640px] px-4 py-8 sm:px-6">
-        <MotionDiv variants={container} initial="hidden" animate="show">
-          <MotionDiv variants={item}>
-            <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a8a8a]">
+      <div className="mx-auto max-w-[700px] px-4 py-8 sm:px-6 sm:py-10">
+        <MotionDiv variants={container} initial="hidden" animate="show" className="flex flex-col gap-6 sm:gap-7">
+          {/* 1. Header — centered */}
+          <MotionDiv variants={item} className="text-center">
+            <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">
               Post-interview report
             </p>
-            <h1 className="mt-2 text-[26px] font-semibold leading-tight tracking-tight text-white sm:text-[32px]">
+            <h1 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Session complete
             </h1>
-            <p className="mt-1 text-[22px] font-bold tracking-tight text-[#ffb547] sm:text-[26px]">
+            <p
+              className="mt-2 text-xl font-bold tracking-tight sm:text-2xl"
+              style={{ color: ACCENT }}
+            >
               Your Feedback
             </p>
           </MotionDiv>
 
-          <MotionDiv variants={item} className="mt-6 flex flex-wrap items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-lg text-white/70">
-              👤
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[15px] font-semibold text-white">
-                {name} <span className="font-normal text-white/50">—</span>{' '}
-                <span className="text-white/90">{role}</span>
+          {/* 2. User info + pills */}
+          <MotionDiv variants={item} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#18181B] text-[#A1A1AA] ring-1 ring-white/[0.06]"
+                aria-hidden
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                </svg>
               </div>
+              <p className="truncate text-[15px] font-semibold text-white">
+                {name} <span className="font-normal text-[#A1A1AA]">—</span>{' '}
+                <span className="text-[#E4E4E7]">{role}</span>
+              </p>
             </div>
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
-              {exp ? (
-                <Pill className="border-[#ffb547]/40 bg-[#ffb547]/[0.12] text-[#ffb547]">{exp}</Pill>
-              ) : null}
-              <Pill className="border-white/15 bg-white/[0.06] text-white/60">
-                {formatSessionClock(planned)} session
-              </Pill>
-              <Pill className="border-white/15 bg-white/[0.06] text-white/60">
+            <div className="flex flex-wrap items-center gap-2">
+              {exp ? <Badge>{exp}</Badge> : null}
+              <Badge>{formatPlannedMin(planned)} session</Badge>
+              <Badge>
                 {qCount} {qCount === 1 ? 'question' : 'questions'}
-              </Pill>
+              </Badge>
             </div>
           </MotionDiv>
 
-          <MotionDiv
-            variants={item}
-            className="mt-6 grid grid-cols-3 gap-4 border-b border-white/[0.08] pb-5"
-          >
+          <div className="h-px w-full bg-white/[0.06]" />
+
+          {/* 3. Meta row */}
+          <MotionDiv variants={item} className="grid grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-4">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7a7a7a]">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">
                 Session
               </div>
-              <div className="mt-1 text-[13px] font-medium text-white/90">{formatSessionClock(elapsed)}</div>
+              <div className="mt-1.5 text-[15px] font-medium text-white">{formatSessionClock(elapsed)}</div>
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7a7a7a]">
-                Role
-              </div>
-              <div className="mt-1 text-[13px] font-medium text-white/90">{role}</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">Role</div>
+              <div className="mt-1.5 text-[15px] font-medium text-white">{role}</div>
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7a7a7a]">
-                Mode
-              </div>
-              <div className="mt-1 text-[13px] font-medium text-white/90">{mode}</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">Mode</div>
+              <div className="mt-1.5 text-[15px] font-medium text-white">{mode}</div>
             </div>
           </MotionDiv>
 
-          <MotionDiv
-            variants={item}
-            className="mt-6 rounded-2xl border border-white/[0.1] bg-[#141414] px-5 py-6 sm:px-6"
-          >
-            <div className="text-center">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a9a9a]">
-                Overall score
-              </div>
-              <div className="mt-2 text-5xl font-bold tabular-nums text-[#ffb547] sm:text-[52px]">
-                {score != null ? `${Math.round(score)}/10` : '—'}
-              </div>
-              <p className="mx-auto mt-3 max-w-[420px] text-[13px] leading-snug text-white/65">{verdict}</p>
-            </div>
+          {/* 4. Main score card */}
+          <MotionDiv variants={item}>
+            <div
+              className="relative overflow-hidden rounded-2xl border border-[#2A2A2A] p-6 sm:p-8"
+              style={{
+                background: 'linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%)',
+                boxShadow:
+                  '0 0 0 1px rgba(250, 204, 21, 0.06), 0 24px 48px -12px rgba(0, 0, 0, 0.5), 0 0 80px -20px rgba(234, 179, 8, 0.12)',
+              }}
+            >
+              <div
+                className="pointer-events-none absolute inset-0 opacity-[0.07]"
+                style={{
+                  background:
+                    'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(250, 204, 21, 0.5), transparent 55%)',
+                }}
+              />
 
-            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {METRIC_KEYS.map(({ key, label }) => {
-                const v = metricScores[key]
-                const tone = scoreTone(v)
-                return (
-                  <div key={key} className="text-center">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7a7a7a]">
-                      {label}
-                    </div>
-                    <div className={`mt-1.5 text-lg font-bold tabular-nums ${tone.text}`}>
-                      {v != null ? `${Math.round(v)}/10` : '—'}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+              <div className="relative text-center">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#A1A1AA]">
+                  Overall score
+                </p>
+                <p
+                  className="mt-2 text-6xl font-extrabold tabular-nums leading-none tracking-tight sm:text-7xl"
+                  style={{ color: ACCENT }}
+                >
+                  {score != null ? `${Math.round(score)}/10` : '—'}
+                </p>
+                <p className="mx-auto mt-4 max-w-md text-[14px] leading-relaxed text-[#A1A1AA]">{verdict}</p>
+              </div>
 
-            <div className="mt-8 space-y-4">
-              {METRIC_KEYS.map(({ key, label }) => {
-                const v = metricScores[key]
-                return (
-                  <div key={`bar-${key}`}>
-                    <div className="mb-1.5 flex items-center justify-between text-[12px]">
-                      <span className="font-medium capitalize text-white/80">{label}</span>
-                      <span className={`tabular-nums font-semibold ${scoreTone(v).text}`}>
+              <div className="relative mt-10 grid grid-cols-2 gap-6 sm:grid-cols-4 sm:gap-4">
+                {METRIC_KEYS.map(({ key, label }) => {
+                  const v = metricScores[key]
+                  return (
+                    <div key={key} className="text-center">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#A1A1AA]">
+                        {label}
+                      </div>
+                      <div className={`mt-2 text-xl font-bold tabular-nums ${categoryScoreClass(v)}`}>
+                        {v != null ? `${Math.round(v)}/10` : '—'}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="relative mt-10 space-y-5 border-t border-white/[0.06] pt-8">
+                {METRIC_KEYS.map(({ key, label }) => {
+                  const v = metricScores[key]
+                  return (
+                    <div key={`row-${key}`} className="flex items-center gap-3 sm:gap-4">
+                      <span className="w-[32%] min-w-[7.5rem] shrink-0 text-[13px] font-medium text-[#A1A1AA] sm:w-36">
+                        {label}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <ScoreBarFill value={v} />
+                      </div>
+                      <span
+                        className={`w-12 shrink-0 text-right text-[13px] font-bold tabular-nums sm:w-14 ${categoryScoreClass(v)}`}
+                      >
                         {v != null ? `${Math.round(v)}/10` : '—'}
                       </span>
                     </div>
-                    <ScoreBar value={v} />
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           </MotionDiv>
 
-          <MotionDiv
-            variants={item}
-            className="mt-5 rounded-2xl border border-white/[0.08] bg-[#141414] px-5 py-5 sm:px-6"
-          >
-            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a9a9a]">
+          {/* 5. Strengths */}
+          <MotionDiv variants={item} className="rounded-2xl border border-white/[0.06] bg-[#111111] px-5 py-6 sm:px-6">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">
               Strengths &amp; signal
-            </div>
-            {strengthsBody}
+            </h2>
+            <p className="mt-4 text-[14px] leading-relaxed text-[#D4D4D8]">
+              {strengthsParagraph ?? 'No structured sections parsed from the model reply.'}
+            </p>
           </MotionDiv>
 
-          <MotionDiv
-            variants={item}
-            className="mt-5 rounded-2xl border border-white/[0.08] bg-[#141414] px-5 py-5 sm:px-6"
-          >
-            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a9a9a]">
+          {/* 6. Areas to improve — paragraph only */}
+          <MotionDiv variants={item} className="rounded-2xl border border-white/[0.06] bg-[#111111] px-5 py-6 sm:px-6">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">
               Areas to improve
-            </div>
-            {improveLines.length > 0 ? (
-              <ul className="mt-3 list-none space-y-2 p-0">
-                {improveLines.map((line, i) => (
-                  <li
-                    key={i}
-                    className="rounded-xl border border-red-500/20 bg-red-500/[0.07] px-3 py-2.5 text-[13px] leading-snug text-red-100/90"
-                  >
-                    {line}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-3 text-[13px] leading-relaxed text-white/70">{improveDefault}</p>
-            )}
+            </h2>
+            <p className="mt-4 text-[14px] leading-relaxed text-[#D4D4D8]">{improveParagraph}</p>
           </MotionDiv>
 
-          <MotionDiv variants={item} className="mt-8">
+          {/* 7. Footer */}
+          <MotionDiv variants={item} className="pt-2">
             <button
               type="button"
               onClick={() => onBackHome?.()}
-              className="h-[52px] w-full cursor-pointer rounded-xl border border-white/12 bg-[#252525] text-[15px] font-semibold text-white transition-colors hover:bg-[#2e2e2e]"
+              className="h-[52px] w-full cursor-pointer rounded-xl bg-[#27272A] text-[15px] font-semibold text-white transition-colors hover:bg-[#3F3F46] active:bg-[#52525B]"
             >
               Back to home
             </button>
