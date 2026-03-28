@@ -264,6 +264,127 @@
         padding: 10px 12px;
         font-size: 13px;
       }
+      #captions {
+        margin-top: 16px;
+        padding: 16px;
+        background: #1a1a1a;
+        border-radius: 8px;
+        min-height: 80px;
+        max-height: 160px;
+        overflow-y: auto;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        display: none;
+      }
+      .caption-interim {
+        color: #666;
+        font-style: italic;
+      }
+      .caption-final {
+        color: #f0f0f0;
+      }
+      .interviewerStrip {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding-bottom: 16px;
+        margin-bottom: 4px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .interviewerAvatarWrap {
+        flex-shrink: 0;
+        width: 88px;
+        height: 88px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(145deg, rgba(106, 161, 255, 0.18), rgba(26, 34, 53, 0.95));
+        border: 2px solid rgba(106, 161, 255, 0.35);
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+        transition:
+          transform 0.35s ease,
+          box-shadow 0.35s ease,
+          border-color 0.35s ease,
+          opacity 0.35s ease;
+      }
+      .interviewerAvatarWrap .interviewerAvatarSvg {
+        width: 76px;
+        height: 76px;
+        display: block;
+        border-radius: 50%;
+        transition: transform 0.3s ease;
+      }
+      .interviewerAvatarWrap.state-listening {
+        opacity: 0.88;
+        border-color: rgba(255, 107, 107, 0.45);
+        box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.12);
+      }
+      .interviewerAvatarWrap.state-thinking {
+        animation: avatarThinking 1.25s ease-in-out infinite;
+        border-color: rgba(106, 161, 255, 0.55);
+      }
+      @keyframes avatarThinking {
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+        }
+        50% {
+          transform: scale(1.04);
+          box-shadow: 0 0 24px 6px rgba(106, 161, 255, 0.22);
+        }
+      }
+      .interviewerAvatarWrap.state-speaking {
+        animation: avatarSpeaking 0.42s ease-in-out infinite;
+        border-color: rgba(68, 209, 122, 0.55);
+      }
+      @keyframes avatarSpeaking {
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(68, 209, 122, 0.35);
+        }
+        50% {
+          transform: scale(1.05);
+          box-shadow: 0 0 22px 8px rgba(68, 209, 122, 0.28);
+        }
+      }
+      .interviewerAvatarWrap.state-speaking .interviewerAvatarSvg {
+        animation: avatarNod 0.42s ease-in-out infinite;
+      }
+      @keyframes avatarNod {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(1.5px);
+        }
+      }
+      .interviewerBio {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+      .interviewerBioName {
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--text);
+        letter-spacing: -0.02em;
+      }
+      .interviewerBioTag {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .interviewerAvatarWrap.state-completed {
+        border-color: rgba(68, 209, 122, 0.45);
+        opacity: 1;
+        animation: none;
+      }
+      .interviewerAvatarWrap.state-completed .interviewerAvatarSvg {
+        animation: none;
+      }
     </style>
   </head>
   <body>
@@ -276,6 +397,45 @@
         <div class="countdown" id="countdown">10:00</div>
       </div>
       <div class="card" style="margin-top: 14px">
+        <div class="interviewerStrip">
+          <div class="interviewerAvatarWrap state-idle" id="interviewerAvatarWrap" aria-hidden="true">
+            <svg class="interviewerAvatarSvg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="avFace" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" style="stop-color: #d4b896" />
+                  <stop offset="100%" style="stop-color: #b89572" />
+                </linearGradient>
+                <linearGradient id="avHair" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color: #3d3428" />
+                  <stop offset="100%" style="stop-color: #1e1914" />
+                </linearGradient>
+              </defs>
+              <circle cx="50" cy="50" r="48" fill="#121a28" />
+              <path d="M32 82 Q50 70 68 82 L68 100 H32 Z" fill="#2a3548" />
+              <path d="M32 82 Q50 74 68 82" fill="none" stroke="#4a5a72" stroke-width="1" />
+              <ellipse cx="50" cy="44" rx="24" ry="28" fill="url(#avFace)" />
+              <path
+                d="M26 42 Q26 20 50 18 Q74 20 74 42 Q74 32 50 28 Q26 32 26 42 Z"
+                fill="url(#avHair)"
+              />
+              <ellipse cx="41" cy="42" rx="3.2" ry="2.2" fill="#1a1510" />
+              <ellipse cx="59" cy="42" rx="3.2" ry="2.2" fill="#1a1510" />
+              <ellipse cx="41.5" cy="41.2" rx="1" ry="0.7" fill="rgba(255,255,255,0.35)" />
+              <ellipse cx="59.5" cy="41.2" rx="1" ry="0.7" fill="rgba(255,255,255,0.35)" />
+              <path
+                d="M43 54 Q50 59 57 54"
+                fill="none"
+                stroke="#6b5344"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </div>
+          <div class="interviewerBio">
+            <span class="interviewerBioName">Jordan Lee</span>
+            <span class="interviewerBioTag">AI interviewer · listening and responding like a real panel</span>
+          </div>
+        </div>
         <div class="row">
           <div class="status">
             <span id="statusDot" class="dot dot-idle pulse"></span>
@@ -290,11 +450,9 @@
           <div id="setupFields">
             <div class="field">
               <label for="roleInput">Role you are applying for</label>
-              <input
-                id="roleInput"
-                type="text"
-                placeholder="e.g. Frontend Developer, Data Analyst, DevOps Engineer"
-              />
+              <select id="roleInput">
+                <option value="">Select role</option>
+              </select>
             </div>
             <div class="field" style="margin-top: 10px">
               <label for="experienceLevel">Experience level</label>
@@ -327,6 +485,9 @@
             <button class="toggleBtn idle" id="btnStartNewInterview">Start New Interview</button>
           </div>
           <button class="toggleBtn idle" id="btnToggle">Start Interview</button>
+          <div id="captions">
+            <span class="caption-final" id="captionFinal"></span><span class="caption-interim" id="captionInterim"></span>
+          </div>
         </div>
       </div>
     </div>
@@ -342,6 +503,108 @@
       const feedbackPanel = $("feedbackPanel");
       const setupFields = $("setupFields");
       const roleInput = $("roleInput");
+      const ROLE_GROUPS = [
+        {
+          label: "Software & platform engineering",
+          roles: [
+            "Backend Developer",
+            "DevOps Engineer",
+            "Embedded Software Engineer",
+            "Frontend Developer",
+            "Full Stack Developer",
+            "Mobile App Developer",
+            "QA / Test Engineer",
+            "Security Engineer",
+            "Senior Software Engineer",
+            "Site Reliability Engineer (SRE)",
+            "Software Engineer",
+            "Solutions Architect",
+            "Technical Lead",
+          ],
+        },
+        {
+          label: "Data, AI & analytics",
+          roles: [
+            "BI Developer",
+            "Data Analyst",
+            "Data Engineer",
+            "Data Scientist",
+            "Machine Learning Engineer",
+          ],
+        },
+        {
+          label: "Product, project & delivery",
+          roles: [
+            "Business Analyst",
+            "Product Manager",
+            "Product Owner",
+            "Program Manager",
+            "Project Manager",
+            "Scrum Master",
+          ],
+        },
+        {
+          label: "Design & technical content",
+          roles: ["Technical Writer", "UI Designer", "UX Designer", "UX Researcher"],
+        },
+        {
+          label: "IT & infrastructure",
+          roles: ["Cloud Engineer", "IT Support Specialist", "Network Engineer", "Systems Administrator"],
+        },
+        {
+          label: "Sales, marketing & customer success",
+          roles: [
+            "Account Executive",
+            "Account Manager",
+            "Business Development Representative",
+            "Customer Success Manager",
+            "Digital Marketing Specialist",
+            "Marketing Manager",
+            "Sales Representative",
+          ],
+        },
+        {
+          label: "Finance & accounting",
+          roles: ["Accountant", "Auditor", "Financial Analyst"],
+        },
+        {
+          label: "HR & recruiting",
+          roles: ["HR Generalist", "Recruiter / Talent Acquisition Specialist"],
+        },
+        {
+          label: "Healthcare & clinical support",
+          roles: ["Clinical Research Associate", "Medical Assistant", "Registered Nurse (RN)"],
+        },
+        {
+          label: "Engineering (non-software) & operations",
+          roles: [
+            "Civil Engineer",
+            "Electrical Engineer",
+            "Management Trainee",
+            "Mechanical Engineer",
+            "Operations Manager",
+            "Supply Chain Analyst",
+          ],
+        },
+        {
+          label: "Legal & education",
+          roles: ["Attorney / Lawyer", "Paralegal", "Teacher / Educator"],
+        },
+      ];
+      (function fillRoleSelect() {
+        if (!roleInput) return;
+        for (const g of ROLE_GROUPS) {
+          const og = document.createElement("optgroup");
+          og.label = g.label;
+          for (const title of g.roles) {
+            const opt = document.createElement("option");
+            opt.value = title;
+            opt.textContent = title;
+            og.appendChild(opt);
+          }
+          roleInput.appendChild(og);
+        }
+      })();
       const experienceLevelEl = $("experienceLevel");
       const timerSelect = $("timerSelect");
       const countdownEl = $("countdown");
@@ -349,6 +612,7 @@
       const btnToggle = $("btnToggle");
       const newInterviewWrap = $("newInterviewWrap");
       const btnStartNewInterview = $("btnStartNewInterview");
+      const captionsEl = $("captions");
 
       let stream = null;
       let recorder = null;
@@ -370,7 +634,16 @@
       let remainingSec = 600;
       let timerId = 0;
       let timerExpiredTriggered = false;
+      let liveRecognition = null;
+      let captionsStopping = false;
+      let captionFlushRaf = 0;
+      let captionEventPending = null;
       const API_BASE = "http://localhost:3001";
+      /** Extra pause after your answer is processed, before the interviewer speaks (ms). */
+      const AI_REPLY_DELAY_MS = 2400;
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
       const FEEDBACK_HEADINGS = [
         "Overall Score (out of 10)",
         "Communication",
@@ -387,10 +660,16 @@
           listening: { label: "Listening...", dot: "dot-recording pulse" },
           thinking: { label: "Thinking...", dot: "dot-thinking pulse" },
           speaking: { label: "Speaking...", dot: "dot-speaking" },
+          completed: { label: "Completed", dot: "dot-speaking" },
         };
         const current = map[state] || map.idle;
         statusText.textContent = current.label;
         statusDot.className = `dot ${current.dot}`;
+        const av = $("interviewerAvatarWrap");
+        if (av) {
+          const key = map[state] ? state : "idle";
+          av.className = `interviewerAvatarWrap state-${key}`;
+        }
       }
       function setMicStatus(kind, text) {
         micText.textContent = text;
@@ -432,7 +711,7 @@
           btnToggle.title = micBlocked
             ? "Microphone blocked. Enable microphone in browser settings."
             : !selectedRole || !experienceLevel
-              ? "Role and experience level are required."
+              ? "Select a role and experience level to start."
               : "";
         }
       }
@@ -537,6 +816,94 @@
         const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
         for (const c of candidates) if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
         return "";
+      }
+      function stopLiveCaptions() {
+        captionsStopping = true;
+        if (captionFlushRaf) {
+          cancelAnimationFrame(captionFlushRaf);
+          captionFlushRaf = 0;
+        }
+        captionEventPending = null;
+        if (liveRecognition) {
+          try {
+            liveRecognition.stop();
+          } catch {}
+          liveRecognition = null;
+        }
+        if (captionsEl) {
+          captionsEl.style.display = "none";
+        }
+        const capF = $("captionFinal");
+        const capI = $("captionInterim");
+        if (capF) capF.textContent = "";
+        if (capI) capI.textContent = "";
+      }
+      function flushCaptionDOM() {
+        captionFlushRaf = 0;
+        const event = captionEventPending;
+        captionEventPending = null;
+        if (!event || !captionsEl || captionsStopping) return;
+        const capF = $("captionFinal");
+        const capI = $("captionInterim");
+        if (!capF || !capI) return;
+        let confirmed = "";
+        let interimTranscript = "";
+        for (let i = 0; i < event.results.length; i++) {
+          const res = event.results[i];
+          const text = res[0]?.transcript ?? "";
+          if (res.isFinal) {
+            confirmed += text + " ";
+          } else {
+            interimTranscript += text;
+          }
+        }
+        capF.textContent = confirmed;
+        capI.textContent = interimTranscript;
+        captionsEl.scrollTop = captionsEl.scrollHeight;
+      }
+      function startLiveCaptions() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition || !captionsEl) return;
+        const capF = $("captionFinal");
+        const capI = $("captionInterim");
+        if (capF) capF.textContent = "";
+        if (capI) capI.textContent = "";
+        captionsEl.style.display = "block";
+        captionsStopping = false;
+        const recognition = new SpeechRecognition();
+        liveRecognition = recognition;
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+        recognition.maxAlternatives = 1;
+        recognition.onresult = (event) => {
+          captionEventPending = event;
+          if (!captionFlushRaf) {
+            captionFlushRaf = requestAnimationFrame(flushCaptionDOM);
+          }
+        };
+        recognition.onerror = () => {};
+        recognition.onend = () => {
+          if (captionsStopping) {
+            captionsStopping = false;
+            return;
+          }
+          if (loopActive && recorder && recorder.state === "recording" && liveRecognition === recognition) {
+            try {
+              recognition.start();
+            } catch {}
+          }
+        };
+        const kickoff = () => {
+          if (liveRecognition !== recognition || captionsStopping) return;
+          try {
+            recognition.start();
+          } catch {
+            liveRecognition = null;
+            captionsEl.style.display = "none";
+          }
+        };
+        queueMicrotask(kickoff);
       }
       function stopAllTracks() {
         if (stream) {
@@ -662,12 +1029,19 @@
         if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
         return data;
       }
+      function buildInterviewOpeningLine() {
+        syncStartButtonState();
+        const role = selectedRole.trim() || "this position";
+        const level = experienceLevel.trim();
+        const levelClause = level ? ` This session is calibrated for ${level} experience.` : "";
+        return `Hello — I'm your interviewer for the ${role} role.${levelClause} When you're ready, introduce yourself and what draws you to this kind of work.`;
+      }
       async function greetAndStart() {
         loopActive = true;
         timerExpiredTriggered = false;
         feedbackPanel.classList.remove("show");
         feedbackEl.innerHTML = "";
-        await speak("Hello, I'm ready when you are. Tell me about your startup.");
+        await speak(buildInterviewOpeningLine());
         if (!loopActive) return;
         await startRecordingLoop();
       }
@@ -679,6 +1053,7 @@
         loopActive = false;
         stopCountdown();
         stopSilenceMonitor();
+        stopLiveCaptions();
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
         if (recorder && recorder.state !== "inactive") {
           try {
@@ -730,6 +1105,7 @@
         stopCountdown();
         loopActive = false;
         stopSilenceMonitor();
+        stopLiveCaptions();
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
         if (recorder && recorder.state !== "inactive") {
           try {
@@ -743,8 +1119,7 @@
           renderFeedbackReport(data.message || data.reply || "");
           feedbackPanel.classList.add("show");
           timeBanner.style.display = "block";
-          statusText.textContent = "Completed";
-          statusDot.className = "dot dot-speaking";
+          setStatus("completed");
           btnToggle.style.display = "none";
           newInterviewWrap.style.display = "block";
         } catch (e) {
@@ -772,6 +1147,7 @@
           if (ev.data && ev.data.size > 0) chunks.push(ev.data);
         };
         recorder.onstop = async () => {
+          stopLiveCaptions();
           stopSilenceMonitor();
           blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
           if (!loopActive) return;
@@ -788,8 +1164,7 @@
               if ("speechSynthesis" in window) window.speechSynthesis.cancel();
               renderFeedbackReport(message);
               feedbackPanel.classList.add("show");
-              statusText.textContent = "Completed";
-              statusDot.className = "dot dot-speaking";
+              setStatus("completed");
               btnToggle.style.display = "none";
               newInterviewWrap.style.display = "block";
               return;
@@ -802,6 +1177,8 @@
               return;
             }
             if (data.transcript && String(data.transcript).trim()) {
+              await sleep(AI_REPLY_DELAY_MS);
+              if (!loopActive) return;
               await speak(message);
             }
             if (!loopActive) return;
@@ -815,6 +1192,7 @@
         ensureAnalyser();
         recorder.start();
         setStatus("listening");
+        startLiveCaptions();
         startSilenceMonitor();
       }
       btnToggle.onclick = async () => {
@@ -849,7 +1227,7 @@
       btnStartNewInterview.onclick = async () => {
         await resetInterviewState();
       };
-      roleInput.addEventListener("input", syncStartButtonState);
+      roleInput.addEventListener("change", syncStartButtonState);
       experienceLevelEl.addEventListener("change", syncStartButtonState);
       timerSelect.addEventListener("change", () => {
         totalDurationSec = Number(timerSelect.value || 600);
@@ -873,6 +1251,7 @@
         }
       })();
       window.addEventListener("beforeunload", () => {
+        stopLiveCaptions();
         stopAllTracks();
         if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       });
