@@ -1,119 +1,132 @@
 # HireReady
 
-Voice-first tools to help candidates **practice interviews** and **get blunt, actionable feedback**—without scheduling a human coach for every run.
+Voice-first tools to help candidates **practice interviews** and **get blunt, actionable feedback** — without scheduling a human coach for every session.
 
 ---
 
-## Problem statement
+## Problem Statement
 
 - **Interview anxiety and unpreparedness** — Many candidates struggle to articulate answers under time pressure, especially for role-specific technical and behavioral questions.
-- **Expensive or scarce mock interviews** — Real mock panels are hard to book; generic advice does not map cleanly to a chosen role or experience level.
+- **Expensive or scarce mock interviews** — Real mock panels are hard to book, and generic advice doesn't map cleanly to a chosen role or experience level.
 - **Weak pitch feedback** — Short pitches (e.g. startup or product ideas) often lack honest, structured critique on clarity, market, and differentiation.
 - **Friction in practice loops** — If recording, transcribing, and analyzing answers is slow or clunky, people practice less.
 
-HireReady targets a tight loop: **speak naturally in the browser → accurate transcript → AI interviewer or investor-style feedback** so users can iterate quickly.
+HireReady targets a tight loop: **speak naturally in the browser → accurate transcript → AI interviewer or investor-style feedback** — so users can iterate quickly.
 
 ---
 
-## Solution
+## What It Does
 
-| Capability | What it does |
-|------------|----------------|
-| **AI mock interview** | Timed session: user picks **role** (curated job titles), **experience level**, and **session length**. The app records voice turns, sends audio to the API, and plays the interviewer’s reply with **text-to-speech**. Conversation history is kept server-side in the request/response cycle. When the interview completes (or time runs out), a structured **feedback report** is shown (scores, breakdown, top fixes). |
-| **Live closed captions (client-only)** | While recording, the browser’s **Web Speech API** (`SpeechRecognition`) shows **live captions** in parallel with `MediaRecorder`. Captions are **display-only**; the official transcript for the UI still comes from **Whisper** on the server. |
-| **Brutal feedback (pitch)** | Separate flow: upload a short voice recording; the API transcribes it and returns **tough but fair** investor-style written feedback (`POST /feedback`). |
+| Capability | Description |
+|---|---|
+| **AI Mock Interview** | Timed session where the user picks a role, experience level, and session length. The app records voice turns, sends audio to the API, and plays the interviewer's reply with text-to-speech. Conversation history is maintained across turns. When the interview ends, a structured feedback report is shown with scores, breakdown, and top fixes. |
+| **Live Closed Captions** | While recording, the browser's Web Speech API shows live captions in parallel with MediaRecorder. Captions are display-only — the official transcript still comes from Whisper on the server. |
+| **Brutal Pitch Feedback** | Separate flow: record a short voice pitch, the API transcribes it and returns tough but fair investor-style written feedback via `POST /feedback`. |
 
-The **product frontend** is the **React** app in **`frontend/`** (Vite, screens for landing, interview, feedback, auth-style flows, voice UI). The **`brutal-feedback-web/`** folder is an optional **static HTML** prototype (single `index.html`) you can open or serve without a build step—useful for quick API checks, not the main UI.
+> The **primary frontend** is the React app in `frontend/`. The `brutal-feedback-web/` folder is an optional static HTML prototype useful for quick API checks — not the main UI.
 
 ---
 
-## Tech stack
+## Tech Stack
 
 ### Backend — `brutal-feedback-api/`
 
 | Layer | Choice |
-|--------|--------|
-| Runtime | **Node.js** |
-| HTTP | **Express 5** |
-| Uploads | **Multer** (in-memory, audio size cap) |
-| AI / speech | **Groq** — **Whisper** (`whisper-large-v3`) for transcription; **Llama 3.3 70B** (`llama-3.3-70b-versatile`) for chat completions |
-| SDK | **groq-sdk** |
-| Config | **dotenv** (loads root `.env` then `brutal-feedback-api/.env`) |
-| CORS | **cors** (optional lock-down via `FRONTEND_ORIGIN`) |
+|---|---|
+| Runtime | Node.js |
+| HTTP Framework | Express 5 |
+| File Uploads | Multer (in-memory, with audio size cap) |
+| Speech-to-Text | Groq — Whisper `whisper-large-v3` |
+| AI Interviewer | Groq — Llama 3.3 70B `llama-3.3-70b-versatile` |
+| SDK | groq-sdk |
+| Config | dotenv |
+| CORS | cors middleware (optional lock-down via `FRONTEND_ORIGIN`) |
 
-**Key routes**
+**API Routes**
 
-- `GET /health` — liveness + whether `GROQ_API_KEY` is set  
-- `POST /interview` — multipart: `audio`, `history`, `role`, `experienceLevel`, `message`, `timerExpired` → transcript + interviewer reply + updated history  
-- `POST /feedback` — multipart: `audio` → transcript + brutal pitch feedback  
+| Route | Purpose |
+|---|---|
+| `GET /health` | Liveness check + confirms `GROQ_API_KEY` is set |
+| `POST /interview` | Multipart: `audio`, `history`, `role`, `experienceLevel` → transcript + interviewer reply + updated history |
+| `POST /feedback` | Multipart: `audio` → transcript + brutal pitch feedback |
 
-### Frontend — `frontend/` (primary)
+---
 
-| Layer | Choice |
-|--------|--------|
-| Framework | **React 19** |
-| Build / dev | **Vite 8** |
-| Styling | **Tailwind CSS 4** |
-| Motion | **Framer Motion** |
-| Voice / audio | **MediaRecorder** + **getUserMedia** (e.g. `useMediaRecorder`), timers, API client in `src/utils/api.js` |
-| Structure | Screen-based app: landing, interview, processing, feedback, login/signup shells (`src/screens/`, `src/components/`) |
-
-Point the app at the API with **`VITE_API_BASE`** (see [Environment variables](#environment-variables)).
-
-### Static prototype — `brutal-feedback-web/` (optional)
+### Frontend — `frontend/` (Primary)
 
 | Layer | Choice |
-|--------|--------|
-| UI | Single-file **HTML/CSS/JS** (no bundler)—reference or smoke-test against the API |
-| Audio / speech | **MediaRecorder**, optional **Web Speech** captions + **speechSynthesis** (features may differ from the React app) |
-| API | Hard-coded or editable `API_BASE` toward `brutal-feedback-api` |
+|---|---|
+| Framework | React 19 |
+| Build Tool | Vite 8 |
+| Styling | Tailwind CSS 4 |
+| Animation | Framer Motion |
+| Voice / Audio | MediaRecorder + getUserMedia (`useMediaRecorder` hook) |
+| API Client | `src/utils/api.js` |
 
-### Repository layout
+**Screens**
+
+| Screen | Purpose |
+|---|---|
+| `LandingScreen` | Role picker, difficulty, focus area, strictness, duration |
+| `InterviewScreen` | Live interview — mic button, waveform, AI speaking state |
+| `ProcessingScreen` | Loading state while waiting for backend response |
+| `FeedbackScreen` | Results — scores, transcript with filler word highlights, brutal feedback, tips |
+| `LoginScreen` / `SignupScreen` | Auth shells (built, ready to connect) |
+
+---
+
+### Static Prototype — `brutal-feedback-web/` (Optional)
+
+A single `index.html` file — no bundler needed. Useful for smoke testing the API without running the full React app. Open in Chrome or Edge for best mic and speech API support.
+
+---
+
+## Repository Layout
 
 ```
 HireReady/
-├── .env.example              # Copy to root `.env` or `brutal-feedback-api/.env`
-├── README.md                 # This file
-├── brutal-feedback-api/      # Express API (Groq Whisper + chat)
-├── frontend/                 # React + Vite — main frontend
-└── brutal-feedback-web/      # Optional static HTML prototype (index.html)
+├── .env.example                  # Copy to root .env or brutal-feedback-api/.env
+├── README.md
+├── brutal-feedback-api/          # Express API (Groq Whisper + Llama)
+├── frontend/                     # React + Vite — main frontend
+└── brutal-feedback-web/          # Optional static HTML prototype
 ```
 
 ---
 
 ## Prerequisites
 
-- **Node.js** (LTS recommended) and npm  
-- A **Groq API key** ([Groq Console](https://console.groq.com/keys)) for Whisper + Llama  
+- **Node.js** (LTS recommended) and npm
+- A **Groq API key** from [console.groq.com/keys](https://console.groq.com/keys) — used for both Whisper transcription and Llama chat completions
 
 ---
 
-## Environment variables
+## Environment Variables
 
-Copy `.env.example` to the repo root as `.env` and/or create `brutal-feedback-api/.env`:
+Copy `.env.example` to the repo root or to `brutal-feedback-api/.env`:
 
 | Variable | Required | Purpose |
-|----------|----------|---------|
-| `GROQ_API_KEY` | Yes | Whisper transcription + Groq chat |
-| `PORT` | No | API port (default **3001**) |
-| `FRONTEND_ORIGIN` | No | If set, CORS allows only this origin (otherwise dev allows all) |
-| `VITE_API_BASE` | No | Used by `frontend/` when pointing the UI at the API |
+|---|---|---|
+| `GROQ_API_KEY` | Yes | Whisper transcription + Llama chat |
+| `PORT` | No | API port (default: `3001`) |
+| `FRONTEND_ORIGIN` | No | If set, CORS only allows this origin — leave unset for dev |
+| `VITE_API_BASE` | No | Points the React app at the API (e.g. `http://localhost:3001`) |
 
 ---
 
-## Run locally
+## Running Locally
 
-### 1. API
+### 1. Start the API
 
 ```bash
 cd brutal-feedback-api
 npm install
-npm run start
+npm start
 ```
 
-Server: **http://localhost:3001** (verify with `GET /health`).
+Server runs at **http://localhost:3001** — verify with `GET /health`.
 
-### 2. Frontend (React)
+### 2. Start the Frontend
 
 ```bash
 cd frontend
@@ -121,24 +134,17 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (usually **http://localhost:5173**). Set **`VITE_API_BASE`** in `frontend/.env` if the API is not at the default (e.g. `http://localhost:3001`). For CORS in production-like setups, set **`FRONTEND_ORIGIN`** on the API to match your Vite origin.
+Open the URL Vite prints (usually **http://localhost:5173**). Set `VITE_API_BASE` in `frontend/.env` if the API is on a different port.
 
-### 3. Static prototype (optional)
+### 3. Static Prototype (Optional)
 
-To run the legacy single-page demo without Node for the UI, open or serve **`brutal-feedback-web/index.html`** and align **`API_BASE`** inside the file with your API. Prefer **Chrome or Edge** if you rely on advanced mic / speech APIs there.
-
-If you open the file as `file://`, some browsers restrict the microphone or CORS; a simple static server avoids that.
+Open `brutal-feedback-web/index.html` directly in Chrome or Edge. Align `API_BASE` inside the file with your running API. Use a simple static server instead of `file://` to avoid browser mic and CORS restrictions.
 
 ---
 
-## Security and limitations notes
+## Security Notes
 
-- **API key** must stay on the server; never embed `GROQ_API_KEY` in front-end code.  
-- **Live captions** (where implemented, e.g. static prototype) use the browser’s speech engine (often cloud-backed); they are **not** sent to your backend and can differ from Whisper.  
-- **Groq** usage is subject to their quotas and terms.  
-
----
-
-## License
-
-See package metadata in `brutal-feedback-api/package.json` and `frontend/package.json` if you add a project-wide license file later.
+- **Never expose `GROQ_API_KEY` in frontend code** — it must stay on the server only.
+- **Audio is never written to disk** — Multer uses in-memory storage; audio is transcribed and discarded.
+- **Live captions** use the browser's built-in speech engine (often cloud-backed) and are display-only — they never reach your backend.
+- **Groq usage** is subject to their free tier quotas and terms of service.
