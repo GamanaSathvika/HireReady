@@ -241,6 +241,7 @@ export function InterviewScreen({
   const [experienceLevel, setExperienceLevel] = useState(interviewConfig?.experienceLevel || '')
   const [totalDurationSec, setTotalDurationSec] = useState(interviewConfig?.durationSec ?? 600)
   const [remainingSec, setRemainingSec] = useState(interviewConfig?.durationSec ?? 600)
+  const remainingSecRef = useRef(remainingSec)
   const [history, setHistory] = useState([])
   const [latestTranscript, setLatestTranscript] = useState('')
   const [feedbackMessage, setFeedbackMessage] = useState('')
@@ -287,6 +288,9 @@ export function InterviewScreen({
   useEffect(() => { selectedRoleRef.current = selectedRole }, [selectedRole])
   useEffect(() => { experienceLevelRef.current = experienceLevel }, [experienceLevel])
   useEffect(() => { totalRef.current = totalDurationSec }, [totalDurationSec])
+  useEffect(() => {
+    remainingSecRef.current = remainingSec
+  }, [remainingSec])
 
   // sync interviewConfig prop → state (so parent can pre-fill fields)
   useEffect(() => {
@@ -303,6 +307,30 @@ export function InterviewScreen({
   const setMicStatus = useCallback((kind, text) => setMicStatusState({ kind, text }), [])
   const showError = useCallback((msg) => setError(msg), [])
   const clearError = useCallback(() => setError(''), [])
+
+  const buildInterviewCompletePayload = useCallback((newHistory, message, transcript = '') => {
+    let candidateName = 'You'
+    try {
+      candidateName = sessionStorage.getItem('hireready_user_name') || 'You'
+    } catch {
+      /* ignore */
+    }
+    return {
+      history: newHistory,
+      feedback: message,
+      feedbackText: message,
+      transcript,
+      session: {
+        role: selectedRoleRef.current,
+        experienceLevel: experienceLevelRef.current,
+        configuredDurationSec: totalRef.current,
+        elapsedSec: Math.max(0, totalRef.current - remainingSecRef.current),
+        mode: 'Voice',
+        candidateName,
+        questionCount: newHistory.filter((m) => m.role === 'user').length,
+      },
+    }
+  }, [])
 
   // ── avatar mouth ────────────────────────────────────────────────────────
   const scheduleAvatarMouthClose = useCallback((ms) => {
@@ -364,12 +392,12 @@ export function InterviewScreen({
       setStatus('completed')
       setShowToggleBtn(false)
       setShowNewInterview(true)
-      onInterviewComplete?.({ history: newHistory, feedback: msg })
+      onInterviewComplete?.(buildInterviewCompletePayload(newHistory, msg, data.transcript || ''))
     } catch (e) {
       showError(e?.message || 'Timer finalize failed.')
       setStatus('idle')
     }
-  }, [stopCountdown, setStatus, showError, onInterviewComplete])
+  }, [stopCountdown, setStatus, showError, onInterviewComplete, buildInterviewCompletePayload])
 
   const startCountdown = useCallback(() => {
     stopCountdown()
@@ -552,7 +580,9 @@ export function InterviewScreen({
           if ('speechSynthesis' in window) window.speechSynthesis.cancel()
           setFeedbackMessage(message); setShowFeedback(true)
           setStatus('completed'); setShowToggleBtn(false); setShowNewInterview(true)
-          onInterviewComplete?.({ history: newHistory, feedback: message })
+          onInterviewComplete?.(
+            buildInterviewCompletePayload(newHistory, message, data.transcript || ''),
+          )
           return
         }
         if (data.done) {

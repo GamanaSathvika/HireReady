@@ -12,6 +12,13 @@ const FEEDBACK_HEADINGS = [
   'Top 3 Things to Fix',
 ]
 
+const METRIC_KEYS = [
+  { key: 'Communication', label: 'Communication' },
+  { key: 'Structure', label: 'Structure' },
+  { key: 'Technical Depth', label: 'Technical depth' },
+  { key: 'Confidence', label: 'Confidence' },
+]
+
 function parseFeedbackBlocks(message) {
   const text = String(message || '').trim()
   if (!text) return []
@@ -38,18 +45,75 @@ function parseFeedbackBlocks(message) {
     .filter((s) => s.heading || s.body)
 }
 
-function extractOverallScore(body) {
-  const m = String(body || '').match(/(\d{1,2}(?:\.\d+)?)/)
-  if (!m) return null
-  const n = Number(m[1])
-  return Number.isFinite(n) ? Math.max(0, Math.min(10, n)) : null
+function clampScore(n) {
+  if (!Number.isFinite(n)) return null
+  return Math.max(0, Math.min(10, n))
 }
 
-function formatClock(seconds) {
+function extractScoreFromBody(body) {
+  const s = String(body || '').trim()
+  const m1 = s.match(/(\d{1,2}(?:\.\d+)?)\s*\/\s*10\b/)
+  if (m1) return clampScore(Number(m1[1]))
+  const m2 = s.match(/\b(\d{1,2}(?:\.\d+)?)\s*out of 10\b/i)
+  if (m2) return clampScore(Number(m2[1]))
+  const m3 = s.match(/^(\d{1,2}(?:\.\d+)?)\b/)
+  return m3 ? clampScore(Number(m3[1])) : null
+}
+
+function extractOverallScore(body) {
+  return extractScoreFromBody(body)
+}
+
+function overallSummaryLine(body, score) {
+  let t = String(body || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join(' ')
+    .replace(/^\(?out of 10\)?/i, '')
+    .trim()
+  if (score != null) {
+    t = t.replace(new RegExp(`^${score}\\s*/\\s*10\\s*`, 'i'), '').trim()
+    t = t.replace(new RegExp(`^${score}\\b\\s*`, ''), '').trim()
+  }
+  return t || 'Needs significant improvement before applying.'
+}
+
+function scoreTone(n) {
+  if (n == null) return { text: 'text-white/75', fill: 'bg-white/30' }
+  if (n <= 4) return { text: 'text-red-400', fill: 'bg-red-400' }
+  if (n <= 6) return { text: 'text-amber-300', fill: 'bg-[#ffb547]' }
+  return { text: 'text-[#ffb547]', fill: 'bg-[#ffb547]' }
+}
+
+function formatSessionClock(seconds) {
   const s = Math.max(0, Math.floor(seconds || 0))
   const m = Math.floor(s / 60)
   const r = s % 60
   return `${m}m ${String(r).padStart(2, '0')}s`
+}
+
+function Pill({ children, className = '' }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${className}`}
+    >
+      {children}
+    </span>
+  )
+}
+
+function ScoreBar({ value, max = 10 }) {
+  const pct = Math.min(100, Math.max(0, ((value ?? 0) / max) * 100))
+  const tone = scoreTone(value)
+  return (
+    <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.08]">
+      <div
+        className={`h-full rounded-full transition-all ${tone.fill}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  )
 }
 
 export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
@@ -59,8 +123,13 @@ export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
   )
   const fixBlock = blocks.find((b) => String(b.heading || '').toLowerCase().includes('top 3'))
   const score = overallBlock ? extractOverallScore(overallBlock.body) : null
-  const verdict =
-    overallBlock?.body?.replace(/^\(?out of 10\)?/i, '').trim() || 'Session complete.'
+  const verdict = overallBlock ? overallSummaryLine(overallBlock.body, score) : 'Session complete.'
+
+  const metricScores = {}
+  for (const { key } of METRIC_KEYS) {
+    const block = blocks.find((b) => b.heading === key)
+    metricScores[key] = block ? extractScoreFromBody(block.body) : null
+  }
 
   const improveLines = fixBlock
     ? fixBlock.body
@@ -69,8 +138,10 @@ export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
         .filter(Boolean)
     : []
 
+  const metricHeadingSet = new Set(METRIC_KEYS.map((m) => m.key))
   const strengthBlocks = blocks.filter((b) => {
     const h = String(b.heading || '').toLowerCase()
+    if (metricHeadingSet.has(b.heading)) return false
     return (
       !h.includes('overall score') &&
       !h.includes('top 3') &&
@@ -78,139 +149,199 @@ export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
     )
   })
 
+  const name = session?.candidateName?.trim() || 'You'
+  const role = session?.role || '—'
+  const exp = session?.experienceLevel || ''
+  const planned = session?.configuredDurationSec ?? 0
+  const elapsed = session?.elapsedSec ?? planned
+  const qCount = session?.questionCount ?? 0
+  const mode = session?.mode || 'Voice'
+
   const container = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
-      transition: { staggerChildren: 0.08, delayChildren: 0.06 },
+      transition: { staggerChildren: 0.07, delayChildren: 0.05 },
     },
   }
 
   const item = {
-    hidden: { opacity: 0, y: 14 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.2, 0.9, 0.2, 1] } },
+    hidden: { opacity: 0, y: 12 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.2, 0.9, 0.2, 1] } },
   }
+
+  const strengthsBody =
+    strengthBlocks.length > 0
+      ? strengthBlocks.map((b, i) => (
+          <div key={i} className="mt-3 first:mt-0">
+            <div className="text-[13px] font-semibold text-[#ffb547]/90">{b.heading}</div>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-white/70 whitespace-pre-wrap">
+              {b.body}
+            </p>
+          </div>
+        ))
+      : (
+          <p className="mt-2 text-[13px] leading-relaxed text-white/55">
+            No structured sections parsed from the model reply.
+          </p>
+        )
+
+  const improveDefault =
+    'See full detailed breakdown above. Work on structuring answers and deepening technical depth. Prepare a range of project and challenge-related answers.'
 
   return (
     <div
-      className="min-h-[100svh] bg-[#0a0a0a] text-[#f3f3f3]"
+      className="min-h-[100svh] bg-[#050505] text-[#f3f3f3]"
       style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}
     >
-      <div className="mx-auto max-w-[720px] px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-[640px] px-4 py-8 sm:px-6">
         <MotionDiv variants={container} initial="hidden" animate="show">
           <MotionDiv variants={item}>
-            <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#9a9a9a]">
-              Interview complete
+            <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a8a8a]">
+              Post-interview report
             </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-[28px]">
-              Your feedback
+            <h1 className="mt-2 text-[26px] font-semibold leading-tight tracking-tight text-white sm:text-[32px]">
+              Session complete
             </h1>
+            <p className="mt-1 text-[22px] font-bold tracking-tight text-[#ffb547] sm:text-[26px]">
+              Your Feedback
+            </p>
+          </MotionDiv>
+
+          <MotionDiv variants={item} className="mt-6 flex flex-wrap items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-lg text-white/70">
+              👤
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-semibold text-white">
+                {name} <span className="font-normal text-white/50">—</span>{' '}
+                <span className="text-white/90">{role}</span>
+              </div>
+            </div>
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+              {exp ? (
+                <Pill className="border-[#ffb547]/40 bg-[#ffb547]/[0.12] text-[#ffb547]">{exp}</Pill>
+              ) : null}
+              <Pill className="border-white/15 bg-white/[0.06] text-white/60">
+                {formatSessionClock(planned)} session
+              </Pill>
+              <Pill className="border-white/15 bg-white/[0.06] text-white/60">
+                {qCount} {qCount === 1 ? 'question' : 'questions'}
+              </Pill>
+            </div>
           </MotionDiv>
 
           <MotionDiv
             variants={item}
-            className="mt-6 rounded-[14px] border border-white/[0.08] bg-[#141414] p-5"
+            className="mt-6 grid grid-cols-3 gap-4 border-b border-white/[0.08] pb-5"
           >
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9a9a9a]">
-                  Session
-                </div>
-                <div className="mt-1 text-sm text-white/90">
-                  {formatClock(session?.elapsedSec ?? 0)}
-                  {session?.configuredDurationSec
-                    ? ` / ${formatClock(session.configuredDurationSec)} planned`
-                    : ''}
-                </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7a7a7a]">
+                Session
               </div>
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9a9a9a]">
-                  Role
-                </div>
-                <div className="mt-1 text-sm text-white/90">{session?.role || '—'}</div>
-              </div>
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#9a9a9a]">
-                  Mode
-                </div>
-                <div className="mt-1 text-sm text-white/90">{session?.mode || 'Voice'}</div>
-              </div>
+              <div className="mt-1 text-[13px] font-medium text-white/90">{formatSessionClock(elapsed)}</div>
             </div>
-            {session?.experienceLevel ? (
-              <div className="mt-4 border-t border-white/[0.06] pt-4 text-[13px] text-[#9a9a9a]">
-                Experience level:{' '}
-                <span className="text-white/85">{session.experienceLevel}</span>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7a7a7a]">
+                Role
               </div>
-            ) : null}
+              <div className="mt-1 text-[13px] font-medium text-white/90">{role}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7a7a7a]">
+                Mode
+              </div>
+              <div className="mt-1 text-[13px] font-medium text-white/90">{mode}</div>
+            </div>
           </MotionDiv>
 
-          {score != null ? (
-            <MotionDiv
-              variants={item}
-              className="mt-5 rounded-[14px] border border-[#ffb547]/35 bg-[#ffb547]/[0.07] p-5 text-center"
-            >
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#ffb547]">
+          <MotionDiv
+            variants={item}
+            className="mt-6 rounded-2xl border border-white/[0.1] bg-[#141414] px-5 py-6 sm:px-6"
+          >
+            <div className="text-center">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a9a9a]">
                 Overall score
               </div>
-              <div className="mt-2 text-4xl font-bold tabular-nums text-[#ffb547]">{score}</div>
-              <div className="mt-2 text-[13px] leading-snug text-white/75">{verdict}</div>
-            </MotionDiv>
-          ) : (
-            <MotionDiv variants={item} className="mt-5 rounded-[14px] border border-white/10 bg-[#141414] p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#ffb547]">
-                Verdict
+              <div className="mt-2 text-5xl font-bold tabular-nums text-[#ffb547] sm:text-[52px]">
+                {score != null ? `${Math.round(score)}/10` : '—'}
               </div>
-              <p className="mt-2 mb-0 text-[13px] leading-relaxed text-white/80">{verdict}</p>
-            </MotionDiv>
-          )}
-
-          <MotionDiv variants={item} className="mt-5 rounded-[14px] border border-white/[0.08] bg-[#141414] p-5">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a9a9a]">
-              Strengths &amp; signal
+              <p className="mx-auto mt-3 max-w-[420px] text-[13px] leading-snug text-white/65">{verdict}</p>
             </div>
-            <div className="mt-3 space-y-3">
-              {strengthBlocks.length ? (
-                strengthBlocks.map((b, i) => (
-                  <div key={i} className="rounded-[10px] bg-white/[0.04] px-3 py-3">
-                    <div className="text-[12px] font-semibold text-[#ffb547]">{b.heading}</div>
-                    <pre className="mt-2 whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-white/75">
-                      {b.body}
-                    </pre>
+
+            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {METRIC_KEYS.map(({ key, label }) => {
+                const v = metricScores[key]
+                const tone = scoreTone(v)
+                return (
+                  <div key={key} className="text-center">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7a7a7a]">
+                      {label}
+                    </div>
+                    <div className={`mt-1.5 text-lg font-bold tabular-nums ${tone.text}`}>
+                      {v != null ? `${Math.round(v)}/10` : '—'}
+                    </div>
                   </div>
-                ))
-              ) : (
-                <p className="text-[13px] text-white/55">No structured sections parsed from the model reply.</p>
-              )}
+                )
+              })}
+            </div>
+
+            <div className="mt-8 space-y-4">
+              {METRIC_KEYS.map(({ key, label }) => {
+                const v = metricScores[key]
+                return (
+                  <div key={`bar-${key}`}>
+                    <div className="mb-1.5 flex items-center justify-between text-[12px]">
+                      <span className="font-medium capitalize text-white/80">{label}</span>
+                      <span className={`tabular-nums font-semibold ${scoreTone(v).text}`}>
+                        {v != null ? `${Math.round(v)}/10` : '—'}
+                      </span>
+                    </div>
+                    <ScoreBar value={v} />
+                  </div>
+                )
+              })}
             </div>
           </MotionDiv>
 
-          <MotionDiv variants={item} className="mt-5 rounded-[14px] border border-white/[0.08] bg-[#141414] p-5">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a9a9a]">
+          <MotionDiv
+            variants={item}
+            className="mt-5 rounded-2xl border border-white/[0.08] bg-[#141414] px-5 py-5 sm:px-6"
+          >
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a9a9a]">
+              Strengths &amp; signal
+            </div>
+            {strengthsBody}
+          </MotionDiv>
+
+          <MotionDiv
+            variants={item}
+            className="mt-5 rounded-2xl border border-white/[0.08] bg-[#141414] px-5 py-5 sm:px-6"
+          >
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a9a9a]">
               Areas to improve
             </div>
-            <ul className="mt-3 list-none space-y-2 p-0">
-              {improveLines.length ? (
-                improveLines.map((line, i) => (
+            {improveLines.length > 0 ? (
+              <ul className="mt-3 list-none space-y-2 p-0">
+                {improveLines.map((line, i) => (
                   <li
                     key={i}
-                    className="rounded-[10px] border border-red-500/25 bg-red-500/[0.08] px-3 py-2.5 text-[13px] text-red-100/90"
+                    className="rounded-xl border border-red-500/20 bg-red-500/[0.07] px-3 py-2.5 text-[13px] leading-snug text-red-100/90"
                   >
                     {line}
                   </li>
-                ))
-              ) : fixBlock ? (
-                <li className="text-[13px] text-white/75">{fixBlock.body}</li>
-              ) : (
-                <li className="text-[13px] text-white/55">See full report in the sections above.</li>
-              )}
-            </ul>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-[13px] leading-relaxed text-white/70">{improveDefault}</p>
+            )}
           </MotionDiv>
 
           <MotionDiv variants={item} className="mt-8">
             <button
               type="button"
               onClick={() => onBackHome?.()}
-              className="h-[52px] w-full cursor-pointer rounded-[12px] border border-white/15 bg-[#2a2a2a] text-[15px] font-semibold text-white transition-colors hover:bg-[#333]"
+              className="h-[52px] w-full cursor-pointer rounded-xl border border-white/12 bg-[#252525] text-[15px] font-semibold text-white transition-colors hover:bg-[#2e2e2e]"
             >
               Back to home
             </button>

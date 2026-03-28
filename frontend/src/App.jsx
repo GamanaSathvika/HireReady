@@ -26,7 +26,7 @@ export default function App() {
     (payload) => {
       if (!payload) return
       setInterviewEndReport({
-        feedbackText: payload.feedbackText ?? '',
+        feedbackText: payload.feedbackText ?? payload.feedback ?? '',
         transcript: payload.transcript ?? '',
         history: payload.history ?? [],
         session: payload.session ?? {},
@@ -140,7 +140,14 @@ export default function App() {
           {/* SIGNUP ✅ NEW */}
           {screen === 'signup' && (
             <SignupScreen
-              onSignup={() => {
+              onSignup={({ name }) => {
+                if (name?.trim()) {
+                  try {
+                    sessionStorage.setItem('hireready_user_name', name.trim())
+                  } catch {
+                    /* ignore */
+                  }
+                }
                 setAutoStartFromSignup(true)
                 navigate('landing')
               }}
