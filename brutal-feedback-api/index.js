@@ -1,5 +1,3 @@
-const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const dotenv = require("dotenv");
 
@@ -22,7 +20,12 @@ if (!GROQ_API_KEY) {
   console.warn("Missing GROQ_API_KEY in environment.");
 }
 
-const groq = new Groq({ apiKey: GROQ_API_KEY });
+let groqClient = null;
+function getGroq() {
+  if (!GROQ_API_KEY) return null;
+  if (!groqClient) groqClient = new Groq({ apiKey: GROQ_API_KEY });
+  return groqClient;
+}
 
 const app = express();
 
@@ -60,14 +63,6 @@ const upload = multer({
 
 const BRUTAL_FEEDBACK_SYSTEM_PROMPT =
   "You are a tough but fair startup investor doing a 60-second pitch evaluation. The person has just finished their pitch — treat whatever they said as their complete pitch, do not ask for more information. Evaluate it as-is. Be direct and specific: what is weak, what is missing, what would make an investor walk away. If they were vague, tell them vagueness kills deals. If they didn't mention the problem, market size, or differentiation, call each one out by name. End with the single most important thing they must fix. Keep it under 120 words.";
-
-function safeUnlink(filePath) {
-  try {
-    fs.unlinkSync(filePath);
-  } catch {
-    // ignore
-  }
-}
 
 async function transcribeWithWhisper({ buffer, mimetype, originalname }) {
   if (!GROQ_API_KEY) {
@@ -112,7 +107,8 @@ async function transcribeWithWhisper({ buffer, mimetype, originalname }) {
 }
 
 async function generateBrutalFeedback(transcript) {
-  if (!GROQ_API_KEY) {
+  const groq = getGroq();
+  if (!groq) {
     throw new Error(
       "Server misconfigured: missing GROQ_API_KEY (required for Groq feedback generation)."
     );
@@ -128,7 +124,7 @@ async function generateBrutalFeedback(transcript) {
   });
 
   const text = msg?.choices?.[0]?.message?.content?.toString().trim() || "";
-  if (!text) throw new Error("Empty feedback returned by Claude.");
+  if (!text) throw new Error("Empty feedback returned by Groq.");
   return text;
 }
 
@@ -151,7 +147,8 @@ function parseHistory(jsonString) {
 }
 
 async function generateInterviewReply(history, role, experienceLevel) {
-  if (!GROQ_API_KEY) {
+  const groq = getGroq();
+  if (!groq) {
     throw new Error(
       "Server misconfigured: missing GROQ_API_KEY (required for Groq interview replies)."
     );
@@ -185,7 +182,7 @@ On INTERVIEW COMPLETE generate a feedback report with:
   try {
     msg = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
-      max_tokens: 250,
+      max_tokens: 2048,
       messages,
       stream: false,
     });
@@ -200,7 +197,7 @@ On INTERVIEW COMPLETE generate a feedback report with:
 }
 
 app.get("/health", (req, res) => {
-  res.json({ ok: true });
+  res.json({ ok: true, groqConfigured: Boolean(GROQ_API_KEY) });
 });
 
 app.post("/feedback", upload.single("audio"), async (req, res) => {
@@ -230,7 +227,7 @@ app.post("/feedback", upload.single("audio"), async (req, res) => {
     const feedback = await generateBrutalFeedback(transcript);
     return res.status(200).json({ transcript, feedback });
   } catch (err) {
-    const msg = err && err.message ? err.message : "Claude feedback generation failed.";
+    const msg = err && err.message ? err.message : "Groq feedback generation failed.";
     return res
       .status(200)
       .json({ transcript, feedback: `ERROR: ${msg}` });

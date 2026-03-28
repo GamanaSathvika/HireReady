@@ -373,7 +373,7 @@
       let interviewStartedAtMs = 0;
       let parentInterviewMeta = {};
       const DEFAULT_DURATION_SEC = 600;
-      const API_BASE = "http://localhost:3001";
+      let API_BASE = "http://localhost:3001";
       const MSG_PARENT_INIT = "hireready-interview-init";
       const MSG_PARENT_DONE = "hireready-interview-complete";
 
@@ -994,6 +994,10 @@
       window.addEventListener("message", (event) => {
         if (event.origin !== window.location.origin) return;
         if (event.data?.type !== MSG_PARENT_INIT) return;
+        const base = event.data.apiBase;
+        if (typeof base === "string" && base.trim()) {
+          API_BASE = base.replace(/\/+$/, "");
+        }
         applyParentConfig(event.data.config);
       });
       (async () => {

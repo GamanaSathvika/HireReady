@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 
+const MotionDiv = motion.div
+
 const roleFocusMap = {
   "💻 Software Engineer": ["Data Structures", "Algorithms", "System Design"],
   "🎨 Frontend Developer": ["HTML/CSS", "React", "Performance"],
@@ -14,7 +16,28 @@ const roleFocusMap = {
   ],
   "📱 Mobile Developer": ["UI/UX", "Performance", "App Architecture"],
   "🔐 DevOps Engineer": ["CI/CD", "Docker", "Monitoring"],
-};
+}
+
+function Pill({ value, selected, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(value)}
+      className={`pill ${selected ? 'pill-active' : ''}`}
+    >
+      {value}
+    </button>
+  )
+}
+
+function Section({ title, children }) {
+  return (
+    <div className="section">
+      <div className="section-title">{title}</div>
+      <div className="pill-container">{children}</div>
+    </div>
+  )
+}
 
 export function LandingScreen({ onStart }) {
   const [role, setRole] = useState("");
@@ -31,26 +54,10 @@ export function LandingScreen({ onStart }) {
 
   const filteredRoles = roles.filter((r) =>
     r.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const Pill = ({ value, selected, onClick }) => (
-    <button
-      onClick={() => onClick(value)}
-      className={`pill ${selected ? "pill-active" : ""}`}
-    >
-      {value}
-    </button>
-  );
-
-  const Section = ({ title, children }) => (
-    <div className="section">
-      <div className="section-title">{title}</div>
-      <div className="pill-container">{children}</div>
-    </div>
-  );
+  )
 
   return (
-    <motion.div
+    <MotionDiv
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
@@ -200,6 +207,6 @@ export function LandingScreen({ onStart }) {
             </button>
           </div>
       </div>
-    </motion.div>
+    </MotionDiv>
   )
 }

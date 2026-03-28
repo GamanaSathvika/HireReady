@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 
+const MotionDiv = motion.div
+
 export function LoginScreen({ onLogin, onSwitchToSignup }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -32,7 +34,7 @@ export function LoginScreen({ onLogin, onSwitchToSignup }) {
       {/* RIGHT SIDE - FORM */}
       <div className="login-right">
 
-        <motion.div
+        <MotionDiv
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -79,7 +81,7 @@ export function LoginScreen({ onLogin, onSwitchToSignup }) {
             </span>
           </p>
 
-        </motion.div>
+        </MotionDiv>
       </div>
     </div>
   )

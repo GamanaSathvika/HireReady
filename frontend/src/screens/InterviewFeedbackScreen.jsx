@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion'
 
+const MotionDiv = motion.div
+
 const FEEDBACK_HEADINGS = [
   'Overall Score (out of 10)',
   'Communication',
@@ -95,17 +97,17 @@ export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
       style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}
     >
       <div className="mx-auto max-w-[720px] px-4 py-8 sm:px-6">
-        <motion.div variants={container} initial="hidden" animate="show">
-          <motion.div variants={item}>
+        <MotionDiv variants={container} initial="hidden" animate="show">
+          <MotionDiv variants={item}>
             <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#9a9a9a]">
               Interview complete
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-[28px]">
               Your feedback
             </h1>
-          </motion.div>
+          </MotionDiv>
 
-          <motion.div
+          <MotionDiv
             variants={item}
             className="mt-6 rounded-[14px] border border-white/[0.08] bg-[#141414] p-5"
           >
@@ -140,10 +142,10 @@ export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
                 <span className="text-white/85">{session.experienceLevel}</span>
               </div>
             ) : null}
-          </motion.div>
+          </MotionDiv>
 
           {score != null ? (
-            <motion.div
+            <MotionDiv
               variants={item}
               className="mt-5 rounded-[14px] border border-[#ffb547]/35 bg-[#ffb547]/[0.07] p-5 text-center"
             >
@@ -152,17 +154,17 @@ export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
               </div>
               <div className="mt-2 text-4xl font-bold tabular-nums text-[#ffb547]">{score}</div>
               <div className="mt-2 text-[13px] leading-snug text-white/75">{verdict}</div>
-            </motion.div>
+            </MotionDiv>
           ) : (
-            <motion.div variants={item} className="mt-5 rounded-[14px] border border-white/10 bg-[#141414] p-5">
+            <MotionDiv variants={item} className="mt-5 rounded-[14px] border border-white/10 bg-[#141414] p-5">
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#ffb547]">
                 Verdict
               </div>
               <p className="mt-2 mb-0 text-[13px] leading-relaxed text-white/80">{verdict}</p>
-            </motion.div>
+            </MotionDiv>
           )}
 
-          <motion.div variants={item} className="mt-5 rounded-[14px] border border-white/[0.08] bg-[#141414] p-5">
+          <MotionDiv variants={item} className="mt-5 rounded-[14px] border border-white/[0.08] bg-[#141414] p-5">
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a9a9a]">
               Strengths &amp; signal
             </div>
@@ -180,9 +182,9 @@ export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
                 <p className="text-[13px] text-white/55">No structured sections parsed from the model reply.</p>
               )}
             </div>
-          </motion.div>
+          </MotionDiv>
 
-          <motion.div variants={item} className="mt-5 rounded-[14px] border border-white/[0.08] bg-[#141414] p-5">
+          <MotionDiv variants={item} className="mt-5 rounded-[14px] border border-white/[0.08] bg-[#141414] p-5">
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9a9a9a]">
               Areas to improve
             </div>
@@ -202,9 +204,9 @@ export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
                 <li className="text-[13px] text-white/55">See full report in the sections above.</li>
               )}
             </ul>
-          </motion.div>
+          </MotionDiv>
 
-          <motion.div variants={item} className="mt-8">
+          <MotionDiv variants={item} className="mt-8">
             <button
               type="button"
               onClick={() => onBackHome?.()}
@@ -212,8 +214,8 @@ export function InterviewFeedbackScreen({ session, feedbackText, onBackHome }) {
             >
               Back to home
             </button>
-          </motion.div>
-        </motion.div>
+          </MotionDiv>
+        </MotionDiv>
       </div>
     </div>
   )

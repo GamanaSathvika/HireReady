@@ -1,41 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCallback, useEffect, useState } from 'react'
 import { BrutalLayout } from './components/BrutalLayout'
-import { FeedbackScreen } from './screens/FeedbackScreen'
 import { InterviewFeedbackScreen } from './screens/InterviewFeedbackScreen'
 import { InterviewScreen } from './screens/InterviewScreen'
 import { LandingScreen } from './screens/LandingScreen'
-import { ProcessingScreen } from './screens/ProcessingScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { SignupScreen } from './screens/SignupScreen'
-import { getApiHealth, postInterviewTurn } from './utils/api'
+import { getApiHealth } from './utils/api'
 import { formatDurationMMSS, parseDurationToSeconds } from './utils/duration'
-
-function parseScore(feedbackText, label) {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const re = new RegExp(`${escaped}\\s*[:=-]?\\s*(\\d{1,2})`, 'i')
-  const match = String(feedbackText || '').match(re)
-  const value = match ? Number(match[1]) : 0
-  return Number.isFinite(value) ? Math.max(0, Math.min(10, value)) : 0
-}
-
-function normalizeFeedbackShape({ transcript, feedbackText }) {
-  const lines = String(feedbackText || '')
-    .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-
-  return {
-    transcript: transcript || '',
-    brutal: lines.slice(0, 4),
-    tips: lines.slice(4, 7),
-    scores: {
-      Structure: parseScore(feedbackText, 'Structure'),
-      Communication: parseScore(feedbackText, 'Communication'),
-      Confidence: parseScore(feedbackText, 'Confidence'),
-    },
-  }
-}
 
 function durationLabelFromConfig(duration) {
   const sec = parseDurationToSeconds(duration)
@@ -45,17 +17,10 @@ function durationLabelFromConfig(duration) {
 export default function App() {
   const [screen, setScreen] = useState('login')
   const [autoStartFromSignup, setAutoStartFromSignup] = useState(false)
-  const [feedback, setFeedback] = useState(null)
   const [interviewConfig, setInterviewConfig] = useState(null)
-  const [capturedBlob, setCapturedBlob] = useState(null)
-  const [interviewHistory, setInterviewHistory] = useState([])
   const [apiReady, setApiReady] = useState(true)
   const [groqKeyMissing, setGroqKeyMissing] = useState(false)
   const [interviewEndReport, setInterviewEndReport] = useState(null)
-  const [aiPrompt, setAiPrompt] = useState(
-    "Hello! Welcome to your mock interview. Please introduce yourself, then walk me through your projects."
-  )
-
   const MotionDiv = motion.div
   const countdownLabel = durationLabelFromConfig(interviewConfig?.duration)
 
@@ -129,65 +94,32 @@ export default function App() {
     return () => window.clearTimeout(t)
   }, [screen, autoStartFromSignup])
 
-  // 🔥 PROCESSING FLOW
+  // Re-check API when opening interview (first load may have run before the server was up).
   useEffect(() => {
-    if (screen !== 'processing' || !capturedBlob) return
+    if (screen !== 'interview') return
     let cancelled = false
-
     ;(async () => {
       try {
-        const payload = await postInterviewTurn({
-          blob: capturedBlob,
-          history: interviewHistory,
-          role: interviewConfig?.role ?? '',
-          experienceLevel: interviewConfig?.experienceLevel ?? '',
-          timerExpired: false,
-          message: '',
-        })
-        if (cancelled) return
-
-        const replyText = payload?.message || payload?.reply || ''
-        const nextHistory = Array.isArray(payload?.history) ? payload.history : []
-        setInterviewHistory(nextHistory)
-        setAiPrompt(replyText)
-        setCapturedBlob(null)
-
-        if (payload?.interviewDone) {
-          const transcript = nextHistory
-            .filter((m) => m?.role === 'user')
-            .map((m) => m.content)
-            .join('\n\n')
-          const feedbackText = replyText
-          setFeedback(normalizeFeedbackShape({ transcript, feedbackText }))
-          navigate('feedback')
-          return
+        const health = await getApiHealth()
+        if (!cancelled) {
+          setApiReady(true)
+          setGroqKeyMissing(health?.groqConfigured === false)
         }
-        navigate('interview')
-      } catch (err) {
-        if (cancelled) return
-        const message = err instanceof Error ? err.message : 'Request failed.'
-        setFeedback(
-          normalizeFeedbackShape({
-            transcript: '',
-            feedbackText: `ERROR: ${message}`,
-          })
-        )
-        navigate('feedback')
+      } catch {
+        if (!cancelled) {
+          setApiReady(false)
+          setGroqKeyMissing(false)
+        }
       }
     })()
-
     return () => {
       cancelled = true
     }
-  }, [screen, capturedBlob, interviewHistory, interviewConfig])
+  }, [screen])
 
   function reset() {
-    setFeedback(null)
     setInterviewEndReport(null)
     setInterviewConfig(null)
-    setCapturedBlob(null)
-    setInterviewHistory([])
-    setAiPrompt("Hello! Welcome to your mock interview. Please introduce yourself, then walk me through your projects.")
     navigate('landing')
   }
 
@@ -252,8 +184,6 @@ export default function App() {
               <LandingScreen
                 onStart={(cfg) => {
                   setInterviewConfig(cfg ?? null)
-                  setInterviewHistory([])
-                  setAiPrompt("Hello! Welcome to your mock interview. Please introduce yourself, then walk me through your projects.")
                   navigate('interview')
                 }}
               />
@@ -264,6 +194,7 @@ export default function App() {
           {screen === 'interview' && (
             <InterviewScreen
               interviewConfig={interviewConfig}
+              apiUnreachable={!apiReady}
               groqKeyMissing={groqKeyMissing}
               onExit={() => navigate('landing')}
               onInterviewComplete={onInterviewIframeComplete}
@@ -276,23 +207,6 @@ export default function App() {
               feedbackText={interviewEndReport.feedbackText}
               onBackHome={reset}
             />
-          )}
-
-          {/* PROCESSING */}
-          {screen === 'processing' && (
-            <BrutalLayout countdown={countdownLabel}>
-              <ProcessingScreen />
-            </BrutalLayout>
-          )}
-
-          {/* FEEDBACK */}
-          {screen === 'feedback' && (
-            <BrutalLayout countdown={countdownLabel}>
-              <FeedbackScreen
-                feedback={feedback}
-                onTryAgain={reset}
-              />
-            </BrutalLayout>
           )}
 
         </MotionDiv>

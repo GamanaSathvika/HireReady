@@ -3,7 +3,17 @@ import { useCallback, useEffect, useRef } from 'react'
 
 const INIT_MESSAGE = 'hireready-interview-init'
 
-export function InterviewScreen({ onExit, onInterviewComplete, interviewConfig, groqKeyMissing = false }) {
+const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:3001').replace(/\/+$/, '')
+
+const MotionDiv = motion.div
+
+export function InterviewScreen({
+  onExit,
+  onInterviewComplete,
+  interviewConfig,
+  apiUnreachable = false,
+  groqKeyMissing = false,
+}) {
   const iframeRef = useRef(null)
   const configRef = useRef(interviewConfig)
 
@@ -15,7 +25,7 @@ export function InterviewScreen({ onExit, onInterviewComplete, interviewConfig, 
     const win = iframeRef.current?.contentWindow
     if (!win) return
     win.postMessage(
-      { type: INIT_MESSAGE, config: configRef.current ?? null },
+      { type: INIT_MESSAGE, config: configRef.current ?? null, apiBase: API_BASE },
       window.location.origin,
     )
   }, [])
@@ -46,7 +56,7 @@ export function InterviewScreen({ onExit, onInterviewComplete, interviewConfig, 
   }, [interviewConfig, pushConfigToIframe])
 
   return (
-    <motion.div
+    <MotionDiv
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
@@ -80,7 +90,26 @@ export function InterviewScreen({ onExit, onInterviewComplete, interviewConfig, 
         </button>
       </div>
 
-      {groqKeyMissing && (
+      {apiUnreachable && (
+        <div
+          style={{
+            padding: '10px 16px',
+            fontSize: 13,
+            lineHeight: 1.45,
+            color: '#fecaca',
+            background: 'rgba(127, 29, 29, 0.35)',
+            borderBottom: '1px solid rgba(248, 113, 113, 0.35)',
+          }}
+        >
+          Cannot reach the API at <code style={{ background: 'rgba(0,0,0,0.35)', padding: '2px 6px', borderRadius: 4 }}>{API_BASE}</code>.
+          Start <code style={{ background: 'rgba(0,0,0,0.35)', padding: '2px 6px', borderRadius: 4 }}>npm start</code> in{' '}
+          <code style={{ background: 'rgba(0,0,0,0.35)', padding: '2px 6px', borderRadius: 4 }}>brutal-feedback-api</code> or set{' '}
+          <code style={{ background: 'rgba(0,0,0,0.35)', padding: '2px 6px', borderRadius: 4 }}>VITE_API_BASE</code> in{' '}
+          <code style={{ background: 'rgba(0,0,0,0.35)', padding: '2px 6px', borderRadius: 4 }}>frontend/.env</code>, then refresh.
+        </div>
+      )}
+
+      {!apiUnreachable && groqKeyMissing && (
         <div
           style={{
             padding: '10px 16px',
@@ -108,11 +137,14 @@ export function InterviewScreen({ onExit, onInterviewComplete, interviewConfig, 
         allow="microphone; autoplay"
         style={{
           width: '100%',
-          height: groqKeyMissing ? 'calc(100svh - 57px - 52px)' : 'calc(100svh - 57px)',
+          height:
+            apiUnreachable || groqKeyMissing
+              ? 'calc(100svh - 57px - 52px)'
+              : 'calc(100svh - 57px)',
           border: 'none',
           background: '#0f0f0f',
         }}
       />
-    </motion.div>
+    </MotionDiv>
   )
 }
