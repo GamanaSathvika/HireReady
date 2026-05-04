@@ -19,26 +19,47 @@ export async function getApiHealth() {
   return parseJsonResponse(res)
 }
 
-export async function postInterviewTurn({
-  blob,
-  history = [],
-  role = '',
-  experienceLevel = '',
-  timerExpired = false,
-  message = '',
-}) {
-  const fd = new FormData()
-  if (blob) {
-    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm'
-    fd.append('audio', blob, `recording.${ext}`)
-  }
-  fd.append('history', JSON.stringify(history))
-  fd.append('role', role)
-  fd.append('experienceLevel', experienceLevel)
-  fd.append('timerExpired', String(Boolean(timerExpired)))
-  fd.append('message', message)
+export async function loginApi(email, password) {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  })
+  return parseJsonResponse(res)
+}
 
-  const res = await fetch(`${API_BASE}/interview`, { method: 'POST', body: fd })
+export async function signupApi(name, email, password) {
+  const res = await fetch(`${API_BASE}/api/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password })
+  })
+  return parseJsonResponse(res)
+}
+
+export async function initInterviewSession(role, experienceLevel, jobDescription = '') {
+  const token = localStorage.getItem('hireready_token');
+  const res = await fetch(`${API_BASE}/api/sessions/init`, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}` 
+    },
+    body: JSON.stringify({ role, experienceLevel, jobDescription })
+  })
+  return parseJsonResponse(res)
+}
+
+export async function generateInterviewFeedback(sessionId) {
+  const token = localStorage.getItem('hireready_token');
+  const res = await fetch(`${API_BASE}/api/interview/generate-feedback`, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ sessionId })
+  })
   return parseJsonResponse(res)
 }
 

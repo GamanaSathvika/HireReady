@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { toast } from 'react-hot-toast'
+import { initInterviewSession, generateInterviewFeedback } from '../utils/api'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -235,8 +237,8 @@ export function InterviewScreen({
 }) {
   // ── interview UI state ──────────────────────────────────────────────────
   const [status, setStatusState] = useState('idle')
+  const [sessionId, setSessionId] = useState(null)
   const [micStatus, setMicStatusState] = useState({ kind: 'checking', text: 'Checking microphone...' })
-  const [error, setError] = useState('')
   const [selectedRole, setSelectedRole] = useState(interviewConfig?.role || '')
   const [experienceLevel, setExperienceLevel] = useState(interviewConfig?.experienceLevel || '')
   const [totalDurationSec, setTotalDurationSec] = useState(interviewConfig?.durationSec ?? 600)
@@ -259,6 +261,7 @@ export function InterviewScreen({
   const [micBlocked, setMicBlocked] = useState(false)
 
   // ── mutable refs (not re-render safe to keep in state) ──────────────────
+  const sessionIdRef = useRef(null)
   const streamRef = useRef(null)
   const recorderRef = useRef(null)
   const chunksRef = useRef([])
@@ -305,10 +308,10 @@ export function InterviewScreen({
 
   const setStatus = useCallback((s) => setStatusState(s), [])
   const setMicStatus = useCallback((kind, text) => setMicStatusState({ kind, text }), [])
-  const showError = useCallback((msg) => setError(msg), [])
-  const clearError = useCallback(() => setError(''), [])
+  const showError = useCallback((msg) => toast.error(msg), [])
+  const clearError = useCallback(() => toast.dismiss(), [])
 
-  const buildInterviewCompletePayload = useCallback((newHistory, message, transcript = '') => {
+  const buildInterviewCompletePayload = useCallback((newHistory, message, transcript = '', feedbackData = null) => {
     let candidateName = 'You'
     try {
       candidateName = sessionStorage.getItem('hireready_user_name') || 'You'
@@ -319,6 +322,7 @@ export function InterviewScreen({
       history: newHistory,
       feedback: message,
       feedbackText: message,
+      feedbackData,
       transcript,
       session: {
         role: selectedRoleRef.current,
@@ -369,30 +373,59 @@ export function InterviewScreen({
       try { recorderRef.current.stop() } catch {}
     }
     try {
-      const fd = new FormData()
-      fd.append('history', JSON.stringify(historyRef.current))
-      fd.append('message', '[TIMER EXPIRED] The interview time limit has been reached. Generate the complete feedback report now.')
-      fd.append('role', selectedRoleRef.current)
-      fd.append('experienceLevel', experienceLevelRef.current)
-      fd.append('timerExpired', 'true')
       setStatus('thinking')
-      const res = await fetch(`${API_BASE}/interview`, { method: 'POST', body: fd })
-      const text = await res.text()
-      let data
-      try { data = JSON.parse(text) } catch { throw new Error(`Non-JSON response: ${text.slice(0, 200)}`) }
-      if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`)
-      const newHistory = Array.isArray(data.history) ? data.history : historyRef.current
+      const fd = new FormData()
+      fd.append('textMessage', '[TIMER EXPIRED] The interview time limit has been reached. Please conclude the interview and say [INTERVIEW_COMPLETE].')
+      fd.append('sessionId', sessionIdRef.current)
+      const response = await fetch(`${API_BASE}/api/interview/respond-stream`, { method: 'POST', body: fd })
+      
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder("utf-8")
+      let buffer = "", fullMessage = ""
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const messages = buffer.split('\n\n')
+        buffer = messages.pop()
+        for (const msg of messages) {
+          if (msg.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(msg.slice(6))
+              if (data.type === 'chunk') fullMessage += data.content
+            } catch (e) {}
+          }
+        }
+      }
+
+      fullMessage = fullMessage.replace('[INTERVIEW_COMPLETE]', '').trim()
+      const newHistory = [...historyRef.current]
+      newHistory.push({ role: 'assistant', content: fullMessage })
       historyRef.current = newHistory
       setHistory(newHistory)
-      setLatestTranscript(data.transcript || '')
-      const msg = data.message || data.reply || ''
-      setFeedbackMessage(msg)
+      setLatestTranscript('')
+
+      if (fullMessage) {
+        setStatus('speaking')
+        try { await speak(fullMessage) } catch (e) {}
+      }
+
+      let finalFeedback = null
+      try {
+        setStatus('thinking')
+        finalFeedback = await generateInterviewFeedback(sessionIdRef.current)
+        setFeedbackMessage(finalFeedback)
+      } catch (e) {
+        finalFeedback = { error: e.message || 'Failed to generate detailed feedback report' }
+        setFeedbackMessage(finalFeedback)
+      }
+      
       setShowFeedback(true)
       setShowTimeBanner(true)
       setStatus('completed')
       setShowToggleBtn(false)
       setShowNewInterview(true)
-      onInterviewComplete?.(buildInterviewCompletePayload(newHistory, msg, data.transcript || ''))
+      onInterviewComplete?.(buildInterviewCompletePayload(newHistory, fullMessage, '', finalFeedback))
     } catch (e) {
       showError(e?.message || 'Timer finalize failed.')
       setStatus('idle')
@@ -531,24 +564,58 @@ export function InterviewScreen({
   }), [clearError, stopAvatarMouthSync, setStatus, pulseAvatarMouth])
 
   // ── API call ─────────────────────────────────────────────────────────────
-  const postInterview = useCallback(async (audioBlob) => {
+  const postInterview = useCallback(async (audioBlob, textMessage = '') => {
     const fd = new FormData()
     if (audioBlob) {
       const ext = audioBlob.type.includes('mp4') ? 'mp4' : 'webm'
       fd.append('audio', audioBlob, `recording.${ext}`)
     }
-    fd.append('history', JSON.stringify(historyRef.current))
-    fd.append('message', '')
-    fd.append('role', selectedRoleRef.current)
-    fd.append('experienceLevel', experienceLevelRef.current)
-    fd.append('timerExpired', 'false')
+    if (textMessage) fd.append('textMessage', textMessage)
+    fd.append('sessionId', sessionIdRef.current)
+    
     setStatus('thinking')
-    const res = await fetch(`${API_BASE}/interview`, { method: 'POST', body: fd })
-    const text = await res.text()
-    let data
-    try { data = JSON.parse(text) } catch { throw new Error(`Non-JSON response: ${text.slice(0, 200)}`) }
-    if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`)
-    return data
+    const response = await fetch(`${API_BASE}/api/interview/respond-stream`, { method: 'POST', body: fd })
+    if (!response.ok) throw new Error(`Request failed (${response.status})`)
+    
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder("utf-8")
+    let buffer = ""
+    let fullMessage = ""
+    let finalTranscript = textMessage || ""
+    let isComplete = false
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const messages = buffer.split('\n\n')
+      buffer = messages.pop()
+      for (const msg of messages) {
+        if (msg.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(msg.slice(6))
+            if (data.type === 'chunk') fullMessage += data.content
+            else if (data.type === 'transcript') finalTranscript = data.text
+            else if (data.type === 'error') throw new Error(data.message)
+            else if (data.type === 'end') isComplete = fullMessage.includes('[INTERVIEW_COMPLETE]')
+          } catch (e) {}
+        }
+      }
+    }
+
+    if (fullMessage.includes('[INTERVIEW_COMPLETE]')) isComplete = true;
+
+    const newHistory = [...historyRef.current]
+    if (finalTranscript) newHistory.push({ role: 'user', content: finalTranscript })
+    if (fullMessage) newHistory.push({ role: 'assistant', content: fullMessage })
+
+    return {
+      message: fullMessage.replace('[INTERVIEW_COMPLETE]', '').trim(),
+      history: newHistory,
+      transcript: finalTranscript,
+      interviewDone: isComplete,
+      done: false
+    }
   }, [setStatus])
 
   // ── recording loop (ref-wrapped for safe recursion) ──────────────────────
@@ -577,11 +644,26 @@ export function InterviewScreen({
         if (data.interviewDone) {
           loopActiveRef.current = false
           stopCountdown(); stopAvatarMouthSync()
-          if ('speechSynthesis' in window) window.speechSynthesis.cancel()
-          setFeedbackMessage(message); setShowFeedback(true)
+          
+          if (message) {
+            setStatus('speaking')
+            try { await speak(message) } catch (e) {}
+          }
+          
+          setStatus('thinking')
+          let finalFeedback = null
+          try {
+            finalFeedback = await generateInterviewFeedback(sessionIdRef.current)
+            setFeedbackMessage(finalFeedback)
+          } catch (e) {
+            finalFeedback = { error: e.message || 'Failed to generate detailed feedback report' }
+            setFeedbackMessage(finalFeedback)
+          }
+          
+          setShowFeedback(true)
           setStatus('completed'); setShowToggleBtn(false); setShowNewInterview(true)
           onInterviewComplete?.(
-            buildInterviewCompletePayload(newHistory, message, data.transcript || ''),
+            buildInterviewCompletePayload(newHistory, message, data.transcript || '', finalFeedback),
           )
           return
         }
@@ -645,13 +727,21 @@ export function InterviewScreen({
       setHistory([]); setLatestTranscript(''); setFeedbackMessage(''); setShowFeedback(false)
       setShowSetup(false); setShowNewInterview(false); setShowToggleBtn(true)
       setIsRecording(true); setRemainingSec(totalRef.current)
+      
+      setStatus('thinking')
+      const sessionRes = await initInterviewSession(selectedRoleRef.current, experienceLevelRef.current)
+      setSessionId(sessionRes.sessionId)
+      sessionIdRef.current = sessionRes.sessionId
+      setStatus('idle')
+
       startCountdown()
       await greetAndStart()
     } catch (e) {
       stopCountdown(); setIsRecording(false)
       showError(e?.message || 'Could not start interview.')
+      setStatus('idle')
     }
-  }, [clearError, resetInterviewState, startCountdown, greetAndStart, stopCountdown, showError])
+  }, [clearError, resetInterviewState, startCountdown, greetAndStart, stopCountdown, showError, setStatus])
 
   // ── mic check on mount ───────────────────────────────────────────────────
   useEffect(() => {
@@ -837,8 +927,6 @@ export function InterviewScreen({
               </div>
 
               {showTimeBanner && <div className="mi-timeBanner">Time limit reached — here is your feedback</div>}
-
-              {error && <div className="mi-error">{error}</div>}
 
               {showSetup && (
                 <div>

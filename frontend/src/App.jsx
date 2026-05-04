@@ -5,6 +5,7 @@ import { InterviewScreen } from './screens/InterviewScreen'
 import { LandingScreen } from './screens/LandingScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { SignupScreen } from './screens/SignupScreen'
+import { Toaster } from 'react-hot-toast'
 import { getApiHealth } from './utils/api'
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
       if (!payload) return
       setInterviewEndReport({
         feedbackText: payload.feedbackText ?? payload.feedback ?? '',
+        feedbackData: payload.feedbackData ?? null,
         transcript: payload.transcript ?? '',
         history: payload.history ?? [],
         session: payload.session ?? {},
@@ -117,6 +119,7 @@ export default function App() {
 
   return (
     <div className="min-h-[100svh]">
+      <Toaster position="top-center" />
       <AnimatePresence mode="wait" initial={false}>
         <MotionDiv
           key={screen}
@@ -211,6 +214,7 @@ export default function App() {
             <InterviewFeedbackScreen
               session={interviewEndReport.session}
               feedbackText={interviewEndReport.feedbackText}
+              feedbackData={interviewEndReport.feedbackData}
               onBackHome={reset}
             />
           )}

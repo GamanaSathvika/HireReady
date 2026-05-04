@@ -7,20 +7,31 @@ function formatMMSS(totalSeconds) {
 }
 
 export function useTimer({ running }) {
-  const [seconds, setSeconds] = useState(0)
+  const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
-    if (!running) return
-    const id = window.setInterval(() => setSeconds((v) => v + 1), 1000)
-    return () => window.clearInterval(id)
-  }, [running])
+    if (!running) return;
 
-  const mmss = useMemo(() => formatMMSS(seconds), [seconds])
+    let startTime = performance.now() - seconds * 1000;
+    let animationFrameId;
+
+    const tick = (currentTime) => {
+      const elapsed = Math.floor((currentTime - startTime) / 1000);
+      setSeconds(elapsed);
+      animationFrameId = requestAnimationFrame(tick);
+    };
+
+    animationFrameId = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [running]);
+
+  const mmss = useMemo(() => formatMMSS(seconds), [seconds]);
 
   return {
     seconds,
     mmss,
     reset: () => setSeconds(0),
-  }
+  };
 }
 

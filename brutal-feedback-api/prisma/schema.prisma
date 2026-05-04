@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  password  String
+  name      String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  sessions  Session[]
+}
+
+model Session {
+  id               String      @id @default(uuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role             String
+  experienceLevel  String
+  candidateProfile String?     @db.Text
+  contextSummary   String?     @db.Text
+  summaryUpdatedAt DateTime?
+  isComplete       Boolean     @default(false)
+  startedAt        DateTime    @default(now())
+  completedAt      DateTime?
+  messages         Message[]
+  feedback         Feedback?
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String   // "user" or "assistant"
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+}
+
+model Feedback {
+  id                  String   @id @default(uuid())
+  sessionId           String   @unique
+  session             Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  // Scoring
+  overallScore        Int
+  technicalScore      Int      @default(0)
+  communicationScore  Int      @default(0)
+  problemSolvingScore Int      @default(0)
+  confidenceScore     Int      @default(0)
+  
+  // Arrays of insights
+  strengths           Json     // [ "strength 1", ... ]
+  weaknesses          Json     // [ "weakness 1", ... ]
+  missedOpportunities Json     // [ "opportunity 1", ... ]
+  
+  // Complex Objects
+  questionEvaluations Json     // [ { question, expectedStructure, actualResponse, coverage, gaps, misconceptions } ]
+  needsImprovement    Json     // [ { mistake, recommendation } ]
+  
+  createdAt           DateTime @default(now())
+}

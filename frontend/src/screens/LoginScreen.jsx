@@ -1,17 +1,32 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
+import { toast } from 'react-hot-toast'
+import { loginApi } from '../utils/api'
 
 const MotionDiv = motion.div
 
 export function LoginScreen({ onLogin, onSwitchToSignup }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!email || !password) return
 
-    onLogin({ email })
+    setLoading(true)
+    try {
+      const data = await loginApi(email, password)
+      if (data.token) {
+        localStorage.setItem('hireready_token', data.token)
+        localStorage.setItem('hireready_user_name', data.user.name || '')
+        onLogin({ email })
+      }
+    } catch (err) {
+      toast.error(err.message || 'Login failed')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
