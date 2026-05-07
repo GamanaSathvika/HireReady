@@ -1,7 +1,4 @@
-/**
- * Post-interview feedback — premium dark dashboard (Tailwind only).
- * Pass props to override defaults; omit for demo content matching the design spec.
- */
+
 const GOLD = '#facc15'
 
 const defaultMetrics = [
@@ -55,7 +52,7 @@ export default function FeedbackScreen({
   metrics = defaultMetrics,
   strengthsText = 'No structured sections parsed from the model reply.',
   improveText =
-    'See full detailed breakdown above. Work on structuring answers and deepening technical depth. Prepare a range of project and challenge-related answers.',
+  'See full detailed breakdown above. Work on structuring answers and deepening technical depth. Prepare a range of project and challenge-related answers.',
   onBackHome,
 }) {
   return (

@@ -1,12 +1,12 @@
 import { motion } from 'framer-motion'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
-import { initInterviewSession, generateInterviewFeedback } from '../utils/api'
+import { initInterviewSession, generateInterviewFeedback, respondStreamApi } from '../utils/api'
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:3001').replace(/\/+$/, '')
+// API_BASE is now managed in utils/api.js
 const AI_REPLY_DELAY_MS = 2400
 const SILENCE_AUTO_STOP_MS = 2500
 
@@ -377,7 +377,7 @@ export function InterviewScreen({
       const fd = new FormData()
       fd.append('textMessage', '[TIMER EXPIRED] The interview time limit has been reached. Please conclude the interview and say [INTERVIEW_COMPLETE].')
       fd.append('sessionId', sessionIdRef.current)
-      const response = await fetch(`${API_BASE}/api/interview/respond-stream`, { method: 'POST', body: fd })
+      const response = await respondStreamApi(fd)
       
       const reader = response.body.getReader()
       const decoder = new TextDecoder("utf-8")
@@ -574,7 +574,7 @@ export function InterviewScreen({
     fd.append('sessionId', sessionIdRef.current)
     
     setStatus('thinking')
-    const response = await fetch(`${API_BASE}/api/interview/respond-stream`, { method: 'POST', body: fd })
+    const response = await respondStreamApi(fd)
     if (!response.ok) throw new Error(`Request failed (${response.status})`)
     
     const reader = response.body.getReader()

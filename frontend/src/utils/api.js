@@ -71,3 +71,13 @@ export async function postFeedbackAudio(blob) {
   return parseJsonResponse(res)
 }
 
+export async function respondStreamApi(formData) {
+  const res = await fetch(`${API_BASE}/api/interview/respond-stream`, {
+    method: 'POST',
+    body: formData
+  })
+  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  return res
+}
+
+
