@@ -30,7 +30,7 @@ HireReady uses PostgreSQL. You can use Render's managed PostgreSQL service.
     *   **Name**: `hireready-api`
     *   **Root Directory**: `brutal-feedback-api`
     *   **Language**: `Node`
-    *   **Build Command**: `npm install` (The `postinstall` script we added will automatically run `prisma generate`)
+    *   **Build Command**: `npm install && npx prisma db push`
     *   **Start Command**: `node index.js`
 4.  Add **Environment Variables**:
     *   `PORT`: `3001` (or leave default, Render usually provides one)
@@ -40,10 +40,6 @@ HireReady uses PostgreSQL. You can use Render's managed PostgreSQL service.
     *   `JWT_SECRET`: A long random string for authentication.
     *   `FRONTEND_ORIGIN`: Your frontend URL (you'll get this in the next phase, e.g., `https://hireready.onrender.com`).
 5.  Click **Deploy Web Service**.
-6.  **Run Migrations**: Once the service is up, go to the **Shell** tab in Render and run:
-    ```bash
-    npx prisma db push
-    ```
 
 ---
 
@@ -74,5 +70,5 @@ HireReady uses PostgreSQL. You can use Render's managed PostgreSQL service.
 ## Troubleshooting
 
 *   **CORS Errors**: Ensure `FRONTEND_ORIGIN` in the backend exactly matches your frontend URL (no trailing slash).
-*   **Database Errors**: Double-check the `DATABASE_URL` and ensure you ran `npx prisma db push`.
+*   **Database Errors**: Double-check the `DATABASE_URL`. The build command `npm install && npx prisma db push` should handle the schema automatically.
 *   **Prisma Client Error**: If you see "Prisma Client could not be found", ensure the `postinstall` script is in `package.json`.
